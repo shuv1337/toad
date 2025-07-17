@@ -21,7 +21,7 @@ Conversation {
     }
     #contents > * {
         margin: 1 0 0 0;
-      
+        
     }
 }
 
@@ -55,8 +55,11 @@ Prompt {
 
 UserInput {
     border-left: vkey $primary;
-    background: $panel;
+    background: $foreground 4%;
     padding: 1 2;
+    & > MarkdownBlock:last-child {
+        margin-bottom: 0;
+    }
 }
 
 AgentResponse {    

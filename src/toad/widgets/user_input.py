@@ -1,5 +1,5 @@
-from textual.widgets import Static
+from textual.widgets import Markdown
 
 
-class UserInput(Static):
+class UserInput(Markdown):
     pass

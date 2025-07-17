@@ -41,7 +41,7 @@ class Conversation(containers.VerticalScroll):
         await self.post(agent_response)
         agent_response.send_prompt(event.body)
 
-    def watch_busy(self, busy: int) -> None:
+    def watch_busy_count(self, busy: int) -> None:
         self.throbber.set_class(busy > 0, "-busy")
 
     async def on_mount(self) -> None:

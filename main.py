@@ -228,7 +228,7 @@ class ResponseWaiter(containers.VerticalGroup):
 
 
 class MarkdownTextArea(TextArea):
-    BINDINGS = [Binding("ctrl+j", "submit", "Submit markdown")]
+    BINDINGS = [Binding("ctrl+j", "submit", "Submit", key_display="enter")]
 
     class Submitted(Message):
         def __init__(self, markdown: str) -> None:

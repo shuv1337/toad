@@ -124,6 +124,10 @@ class Menu(ListView, can_focus=True):
         self.post_message(self.Dismissed())
         await self.remove()
 
+    async def on_blur(self) -> None:
+        self.post_message(self.Dismissed())
+        await self.remove()
+
     @on(events.Key)
     async def on_key(self, event: events.Key) -> None:
         for index, option in enumerate(self._options):

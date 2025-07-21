@@ -183,13 +183,32 @@ I would like to add controls to these widgets to export the table as CSV, which 
 
 | Name            | Type   | Default | Description                        |
 | --------------- | ------ | ------- | ---------------------------------- |
-| `show_header`   | `bool` | `True`  | Show the table header              |
+| `show_header`   | `bool` | `True`  | Show the **table** header              |
 | `fixed_rows`    | `int`  | `0`     | Number of fixed rows               |
 | `fixed_columns` | `int`  | `0`     | Number of fixed columns            |
 | `zebra_stripes` | `bool` | `False` | Display alternating colors on rows |
 | `header_height` | `int`  | `1`     | Height of header row               |
 | `show_cursor`   | `bool` | `True`  | Show a cell cursor                 |
 """
+
+# MD = """
+# ## Tables
+
+# Tables are supported, and render as a Rich table.
+
+# I would like to add controls to these widgets to export the table as CSV, which I think would be a nice feature. In the future we might also have sortable columns by clicking on the headers.
+
+# `FOO`
+
+# | Name            | Type   | Default | Description                        |
+# | --------------- | ------ | ------- | ---------------------------------- |
+# | `show_header`   | `bool` | `True`  | Show the **table** header              |
+# | `fixed_rows`    | `int`  | `0`     | Number of fixed rows               |
+# | `fixed_columns` | `int`  | `0`     | Number of fixed columns            |
+# | `zebra_stripes` | `bool` | `False` | Display alternating colors on rows |
+# | `header_height` | `int`  | `1`     | Height of header row               |
+# | `show_cursor`   | `bool` | `True`  | Show a cell cursor                 |
+# """
 
 
 class Cursor(Static):
@@ -241,10 +260,10 @@ class Contents(containers.VerticalScroll, can_focus=True):
 class Conversation(containers.Vertical):
     BINDING_GROUP_TITLE = "Conversation"
     BINDINGS = [
-        Binding("alt+up", "cursor_up", "Block cursor up", priority=True),
-        Binding("alt+down", "cursor_down", "Block cursor down", priority=True),
-        Binding("enter", "select_block", "Select block"),
-        Binding("escape", "dismiss", "Dismiss"),
+        Binding("alt+up", "cursor_up", "Block up", priority=True),
+        Binding("alt+down", "cursor_down", "Block down"),
+        Binding("enter", "select_block", "Select"),
+        Binding("escape", "dismiss", "Dismiss", show=False),
     ]
 
     busy_count = var(0)
@@ -312,15 +331,15 @@ class Conversation(containers.Vertical):
     async def on_mount(self) -> None:
         self.screen.can_focus = False
         await self.post(Welcome(), anchor=True)
-        # agent_response = AgentResponse()
-        # await self.post(agent_response, anchor=True)
-        # chunk = 8
+        agent_response = AgentResponse(MD)
+        await self.post(agent_response, anchor=True)
+        chunk = 8
 
         # for position in range(0, len(MD), chunk):
         #     await agent_response.append(MD[position : position + chunk])
-        #     await asyncio.sleep(0.0)
+        #     await asyncio.sleep(0.01)
 
-    async def on_click(self, event: events.Click) -> None:
+    def on_click(self, event: events.Click) -> None:
         if event.widget is not None:
             markdown_block = event.widget
             try:
@@ -375,7 +394,7 @@ class Conversation(containers.Vertical):
         if not blocks:
             return
         if self.block_cursor == -1:
-            self.block_cursor = len(blocks) - 1
+            return
         else:
             if self.block_cursor < len(blocks) - 1:
                 self.block_cursor += 1

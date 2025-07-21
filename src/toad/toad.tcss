@@ -1,3 +1,4 @@
+
 Throbber {
     width: 100%;
     height: 1;    
@@ -12,7 +13,8 @@ Conversation {
     height: 1fr;
     max-width: 100;    
     background: black 10%;
-    layers: float base prompt;
+    layers: base prompt float;    
+
     # Prompt {
         
     #     dock: bottom;
@@ -50,8 +52,8 @@ Conversation {
 
 Welcome {
     height: auto;
-    min-height: 100%;
-    
+    min-height: 100%;    
+
     #logo {
         color: $text-success;        
     }
@@ -65,9 +67,14 @@ Prompt {
     dock: bottom;
     padding-top: 1;
     max-height: 50%;
+    # background: $background;
     TextArea {
         height: auto;
         max-height: 1fr;
+        &:blur {
+            border: tall black 50%;
+            text-opacity: 0.5;
+        }
     }
     CondensedPath {
         margin: 1 1;
@@ -96,12 +103,21 @@ AgentResponse {
 
 MainScreen {
     # hatch: right $foreground 10%;
-    align: center top;
+    
+    # align: center top;
     background: $background;
 }
 
+Version {
+    layer: float;
+    offset-x: 0;
+    overlay: screen;
+    width: auto;
+    color: $text-success 50%;
+}
+
 Explain {
-    # layer: float;    
+    layer: float;    
     padding: 0;    
     & > Markdown {        
         margin: 1;
@@ -110,10 +126,47 @@ Explain {
         width: 100%;        
 
     }
-    dock: left;
-    border: tab $primary;
-    height: 1fr;
+    scrollbar-gutter: stable;
+    margin: 0;
+    dock: bottom;
+    border: panel $primary;
+    height: 50%;    
+    margin: 1 0;
     display: none;  
     overflow: auto;
-    width: 40%;    
+    width: 100%;    
+}
+
+Footer {
+    background: transparent;
+    .footer-key--key {
+        color: $text;
+        background: transparent;
+        text-style: bold;
+        padding: 0 1;
+    }
+
+    .footer-key--description {
+        padding: 0 1 0 0;
+        color: $text-muted;
+        background: $footer-description-background;
+    }
+
+    &:hover {
+        color: transparent;
+        background: transparent;
+    }
+
+    &.-disabled {
+        text-style: dim;
+    }
+
+    &.-compact {
+        .footer-key--key {
+            padding: 0;
+        }
+        .footer-key--description {
+            padding: 0 0 0 1;
+        }
+    }
 }

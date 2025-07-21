@@ -14,7 +14,7 @@ from toad.messages import UserInputSubmitted
 
 class MarkdownTextArea(TextArea):
     BINDING_GROUP_TITLE = "Prompt"
-    BINDINGS = [Binding("ctrl+j", "submit", "Submit markdown")]
+    BINDINGS = [Binding("ctrl+j", "newline", "New line", key_display="⇧+enter")]
 
     class Submitted(Message):
         def __init__(self, markdown: str) -> None:
@@ -31,7 +31,7 @@ class MarkdownTextArea(TextArea):
             self.post_message(UserInputSubmitted(self.text))
             self.clear()
 
-    def action_submit(self) -> None:
+    def action_newline(self) -> None:
         self.insert("\n")
 
 

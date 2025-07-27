@@ -19,7 +19,6 @@ from toad import messages
 from toad.widgets.menu import Menu
 from toad.widgets.prompt import MarkdownTextArea, Prompt
 from toad.widgets.throbber import Throbber
-from toad.widgets.welcome import Welcome
 from toad.widgets.user_input import UserInput
 from toad.widgets.explain import Explain
 from toad.widgets.run_output import RunOutput
@@ -354,9 +353,12 @@ class Conversation(containers.Vertical):
     def watch_busy_count(self, busy: int) -> None:
         self.throbber.set_class(busy > 0, "-busy")
 
-    @work
     async def on_mount(self) -> None:
-        self.screen.can_focus = False
+        self.call_after_refresh(self.post_welcome)
+
+    async def post_welcome(self) -> None:
+        from toad.widgets.welcome import Welcome
+
         await self.post(Welcome(), anchor=False)
 
     def on_click(self, event: events.Click) -> None:

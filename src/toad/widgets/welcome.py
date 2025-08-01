@@ -28,4 +28,4 @@ class Welcome(containers.Vertical):
     def compose(self) -> ComposeResult:
         with containers.Center():
             yield Label(ASCII_TOAD, id="logo")
-        yield Markdown(WELCOME_MD, id="message")
+        yield Markdown(WELCOME_MD, id="message", classes="note")

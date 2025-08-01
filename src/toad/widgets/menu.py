@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from typing import NamedTuple
@@ -39,6 +41,7 @@ class Menu(ListView, can_focus=True):
         height: auto;        
         max-width: 100%;
         overlay: screen;  
+        position: absolute;
         color: $foreground;
         background: $panel-darken-1;
         border: solid $foreground;
@@ -87,10 +90,14 @@ class Menu(ListView, can_focus=True):
     class OptionSelected(Message):
         """The user selected on of the options."""
 
+        menu: Menu
         action: str
 
+    @dataclass
     class Dismissed(Message):
         """Menu was dismissed."""
+
+        menu: Menu
 
     class Item(NamedTuple):
         action: str
@@ -119,16 +126,16 @@ class Menu(ListView, can_focus=True):
 
     async def activate_index(self, index: int) -> None:
         action = self._options[index].action
-        self.post_message(self.OptionSelected(action))
+        self.post_message(self.OptionSelected(self, action))
         await self.remove()
 
     async def action_dismiss(self) -> None:
-        self.post_message(self.Dismissed())
-        await self.remove()
+        self.post_message(self.Dismissed(self))
+        # await self.remove()
 
     async def on_blur(self) -> None:
-        self.post_message(self.Dismissed())
-        await self.remove()
+        self.post_message(self.Dismissed(self))
+        # await self.remove()
 
     @on(events.Key)
     async def on_key(self, event: events.Key) -> None:

@@ -15,9 +15,11 @@ from textual.binding import Binding
 from textual.widget import Widget
 from textual.widgets import Static
 from textual.widgets._markdown import MarkdownBlock, MarkdownFence
-from textual.geometry import Offset
+from textual.geometry import Offset, Spacing
 from textual.reactive import var
 from textual.css.query import NoMatches
+from textual.layouts.grid import GridLayout
+
 
 import llm
 
@@ -260,8 +262,11 @@ class Cursor(Static):
     def _update_follow(self) -> None:
         if self.follow_widget:
             self.styles.height = max(1, self.follow_widget.size.height)
-            follow_y = self.follow_widget.region.y
-            self.offset = Offset(0, follow_y + self.container_scroll_offset.y)
+            follow_y = (
+                self.follow_widget.virtual_region.y
+                + self.follow_widget.parent.virtual_region.y
+            )
+            self.offset = Offset(0, follow_y)
 
     def follow(self, widget: Widget | None) -> None:
         self.follow_widget = widget
@@ -277,15 +282,23 @@ class Cursor(Static):
             self._update_follow()
 
 
-class Contents(containers.VerticalScroll, can_focus=True):
-    BINDING_GROUP_TITLE = "View"
-    BINDINGS = [
-        Binding("end", "screen.focus_prompt", "Focus prompt"),
-    ]
+class Contents(containers.VerticalGroup, can_focus=False):
+    pass
 
-    @on(events.Focus)
-    def on_focus(self) -> None:
-        self.query_one(Cursor).visible = True
+    # @on(events.Focus)
+    # def on_focus(self) -> None:
+    #     self.query_one(Cursor).visible = True
+
+
+class ContentsGrid(containers.Grid):
+    def pre_layout(self, layout) -> None:
+        assert isinstance(layout, GridLayout)
+        layout.stretch_height = True
+
+
+class Window(containers.VerticalScroll):
+    BINDING_GROUP_TITLE = "View"
+    BINDINGS = [Binding("end", "screen.focus_prompt", "Focus prompt")]
 
 
 class Conversation(containers.Vertical):
@@ -303,7 +316,8 @@ class Conversation(containers.Vertical):
     _blocks: var[list[MarkdownBlock] | None] = var(None)
 
     throbber: getters.query_one[Throbber] = getters.query_one("#throbber")
-    contents = getters.query_one("#contents", containers.VerticalScroll)
+    contents = getters.query_one(Contents)
+    window = getters.query_one(Window)
     cursor = getters.query_one(Cursor)
     prompt = getters.query_one(Prompt)
 
@@ -311,8 +325,11 @@ class Conversation(containers.Vertical):
 
     def compose(self) -> ComposeResult:
         yield Throbber(id="throbber")
-        with Contents(id="contents"):
-            yield Cursor()
+        with Window():
+            with ContentsGrid():
+                with containers.VerticalGroup(id="cursor-container"):
+                    yield Cursor()
+                yield Contents(id="contents")
         yield Prompt()
 
     @cached_property
@@ -355,14 +372,19 @@ class Conversation(containers.Vertical):
 
     @on(events.DescendantBlur)
     def on_descendant_blur(self, event: events.DescendantBlur):
-        if isinstance(event.widget, Contents):
+        if isinstance(event.widget, Window):
             self.cursor.visible = False
 
     @on(Menu.Dismissed)
     def on_menu_dismissed(self, event: Menu.Dismissed) -> None:
         event.stop()
-        self.contents.focus()
         self.cursor.visible = True
+        with self.window.prevent(events.DescendantFocus):
+            self.window.focus(scroll_visible=False)
+        event.menu.remove()
+        # self.watch_block_cursor(self.block_cursor)
+        # self.window.focus()
+        # self.cursor.visible = True
 
     def watch_busy_count(self, busy: int) -> None:
         self.throbber.set_class(busy > 0, "-busy")
@@ -380,7 +402,7 @@ class Conversation(containers.Vertical):
     async def post_welcome(self) -> None:
         from toad.widgets.welcome import Welcome
 
-        await self.post(Welcome(), anchor=False)
+        await self.post(Welcome(classes="note"), anchor=False)
         await self.post(
             Static(
                 f"Settings read from [$text-success]'{self.app.settings_path}'",
@@ -390,7 +412,13 @@ class Conversation(containers.Vertical):
         notes_path = Path(__file__).parent / "../../../notes.md"
         from textual.widgets import Markdown
 
-        await self.post(Markdown(notes_path.read_text()))
+        await self.post(Markdown(notes_path.read_text(), classes="note"))
+
+        from toad.widgets.agent_response import AgentResponse
+
+        agent_response = AgentResponse(self.conversation)
+        await self.post(agent_response)
+        agent_response.update(MD)
 
     def on_click(self, event: events.Click) -> None:
         if event.widget is not None:
@@ -420,7 +448,7 @@ class Conversation(containers.Vertical):
         self._blocks = None
         await self.contents.mount(widget)
         if anchor:
-            self.contents.anchor()
+            self.window.anchor()
 
     @property
     def blocks(self) -> list[MarkdownBlock]:
@@ -471,9 +499,9 @@ class Conversation(containers.Vertical):
 
         from toad.code_analyze import get_special_name_from_code
 
-        if block.name == "fence" and isinstance(block, MarkdownFence):
+        if block.name == "fence" and isinstance(block, MarkdownFence) and block.source:
             for numeral, name in enumerate(
-                get_special_name_from_code(block._content.plain, block.lexer), 1
+                get_special_name_from_code(block.source, block.lexer), 1
             ):
                 menu_options.append(
                     Menu.Item(f"explain('{name}')", f"Explain '{name}'", f"{numeral}")
@@ -487,8 +515,9 @@ class Conversation(containers.Vertical):
                 *menu_options,
             ]
         )
-        await self.contents.mount(menu, before=block)
-        menu.focus(scroll_visible=False)
+        menu.offset = Offset(1, block.region.offset.y)
+        await self.mount(menu)
+        menu.focus()
 
     def action_copy_to_clipboard(self) -> None:
         if (block := self.cursor_block) is not None and block.source:
@@ -548,13 +577,12 @@ class Conversation(containers.Vertical):
     def watch_block_cursor(self, block_cursor: int) -> None:
         if block_cursor == -1:
             self.cursor.follow(None)
-            self.contents.scroll_end(immediate=True)
+            self.window.anchor()
             self.prompt.focus()
         else:
-            self.contents.focus()
+            self.window.focus()
             self.cursor.visible = True
             blocks = self.blocks
             block = blocks[block_cursor]
             self.cursor.follow(block)
-            self.contents.release_anchor()
-            self.contents.scroll_to_center(block, immediate=True)
+            self.window.scroll_to_center(block)

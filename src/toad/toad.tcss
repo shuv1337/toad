@@ -27,8 +27,8 @@ Conversation {
         width: 1fr;
         overflow: hidden; 
         height: auto;
-
     }
+    
     Contents > * {          
         & > MarkdownBlock:last-child {            
             margin-bottom: 0;     
@@ -44,7 +44,7 @@ Conversation {
     }
 
     Window {
-        
+        margin-right: 1;
     }
 
     #cursor-container {
@@ -180,7 +180,7 @@ Welcome {
 
 Prompt {
     dock: bottom;
-    padding: 1 1 0 1;
+    padding: 1 0 0 0;
     max-height: 50%;
     # background: $background;
     TextArea {

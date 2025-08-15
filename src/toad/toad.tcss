@@ -206,7 +206,7 @@ AutoCompleteOptions {
     padding: 0;
     width: auto;
     overlay: screen;
-    overflow: hidden;
+        
     constrain: inside inflect;
     # layer: float;
     # position: absolute;

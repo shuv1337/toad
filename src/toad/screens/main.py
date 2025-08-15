@@ -13,6 +13,8 @@ from toad.widgets.version import Version
 
 
 class MainScreen(Screen, can_focus=False):
+    AUTO_FOCUS = "Conversation Prompt TextArea"
+
     BINDING_GROUP_TITLE = "Screen"
     busy_count = var(0)
     throbber: getters.query_one[Throbber] = getters.query_one("#throbber")

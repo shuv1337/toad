@@ -382,7 +382,7 @@ class Conversation(containers.Vertical):
     ]
 
     busy_count = var(0)
-    block_cursor = var(-1)
+    block_cursor = var(-1, init=False)
     _blocks: var[list[MarkdownBlock] | None] = var(None)
 
     throbber: getters.query_one[Throbber] = getters.query_one("#throbber")

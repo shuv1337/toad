@@ -21,18 +21,17 @@ from textual.geometry import Offset
 from textual.reactive import var
 from textual.css.query import NoMatches
 from textual.layouts.grid import GridLayout
-
+from textual.widgets import OptionList
 
 import llm
 
 from toad import messages
 from toad.widgets.menu import Menu
-from toad.widgets.prompt import MarkdownTextArea, Prompt
+from toad.widgets.prompt import MarkdownTextArea, Prompt, AutoCompleteOptions
 from toad.widgets.throbber import Throbber
 from toad.widgets.user_input import UserInput
 from toad.widgets.explain import Explain
 from toad.widgets.run_output import RunOutput
-from toad.option_content import OptionContent
 from toad.slash_command import SlashCommand
 
 from toad.menus import CONVERSATION_MENUS
@@ -396,6 +395,7 @@ class Conversation(containers.Vertical):
 
     def compose(self) -> ComposeResult:
         yield Throbber(id="throbber")
+        yield AutoCompleteOptions()
         with Window():
             with ContentsGrid():
                 with containers.VerticalGroup(id="cursor-container"):
@@ -454,6 +454,13 @@ class Conversation(containers.Vertical):
             self.window.focus(scroll_visible=False)
         event.menu.remove()
 
+    @on(OptionList.OptionHighlighted)
+    def on_option_list_option_highlighted(
+        self, event: OptionList.OptionHighlighted
+    ) -> None:
+        if event.option.id is not None:
+            self.prompt.suggest(event.option.id)
+
     def watch_busy_count(self, busy: int) -> None:
         self.throbber.set_class(busy > 0, "-busy")
 
@@ -463,6 +470,14 @@ class Conversation(containers.Vertical):
             SlashCommand("/get", "Get a setting"),
             SlashCommand("/quit", "Quit Toad"),
             SlashCommand("/help", "Get help"),
+            SlashCommand("/set2", "Change a setting"),
+            SlashCommand("/get2", "Get a setting"),
+            SlashCommand("/quit2", "Quit Toad"),
+            SlashCommand("/help2", "Get help"),
+            SlashCommand("/set3", "Change a setting"),
+            SlashCommand("/get3", "Get a setting"),
+            SlashCommand("/quit3", "Quit Toad"),
+            SlashCommand("/help3", "Get help"),
         ]
         self.call_after_refresh(self.post_welcome)
         self.app.settings_changed_signal.subscribe(self, self._settings_changed)

@@ -10,6 +10,7 @@ from textual.widgets import Input, Select, Checkbox, Footer, Static
 from textual.compose import compose
 from textual.validation import Validator, Number
 from textual import getters
+from textual import lazy
 
 from toad.settings import Setting
 

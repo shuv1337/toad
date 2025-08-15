@@ -9,20 +9,6 @@ Throbber {
     }   
 } 
 
-AutoCompleteOptions {
-    border: none;
-    padding: 0 0;
-    width: auto;
-    overlay: screen;
-    constrain: inflect;
-    position: absolute;
-    min-width: 12;
-    
-    
-    & > .option-list--option {
-        padding: 0 1;
-    }
-}
 
 
 Conversation {
@@ -193,6 +179,7 @@ Welcome {
 }
 
 Prompt {
+    
     dock: bottom;
     padding: 1 0 0 0;
     max-height: 50%;
@@ -213,6 +200,26 @@ Prompt {
         color: $text-warning;        
     }
 }
+
+AutoCompleteOptions {
+    border: none;
+    padding: 0;
+    width: auto;
+    overlay: screen;
+    
+    constrain: inside inflect;
+    # layer: float;
+    # position: absolute;
+    # height: auto;
+    min-width: 12;    
+    margin: 1 0;
+    height: auto;
+        
+    & > .option-list--option {
+        padding: 0 1;
+    }
+}
+
 
 
 UserInput {

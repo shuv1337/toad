@@ -520,7 +520,7 @@ class ANSIStream:
 
     @classmethod
     @lru_cache(maxsize=1024)
-    def parse_sgr(cls, sgr: str) -> Style | None:
+    def _parse_sgr(cls, sgr: str) -> Style | None:
         """Parse a SGR (Select Graphics Rendition) code in to a Style instance,
         or `None` to indicate a reset.
 
@@ -539,35 +539,24 @@ class ANSIStream:
         while codes:
             # code, *codes = codes
             match codes:
+                case [38, 2, red, green, blue, *codes]:
+                    # Foreground RGB
+                    style += Style(foreground=Color(red, green, blue))
+                case [48, 2, red, green, blue, *codes]:
+                    # Background RGB
+                    style += Style(background=Color(red, green, blue))
                 case [0, *codes]:
                     # reset
                     return None
                 case [code, *codes] if sgr_style := SGR_STYLE_MAP.get(code):
                     # styles
                     style += sgr_style
-                case [38, *codes]:
-                    #  Foreground
-                    match codes:
-                        case [2, red, green, blue, *codes]:
-                            style += Style(foreground=Color(red, green, blue))
-                        case [5, ansi_color, *codes]:
-                            style += Style(
-                                foreground=Color.parse(ANSI_COLORS[ansi_color])
-                            )
-                        case [_, *codes]:
-                            pass
-
-                case [48, *codes]:
-                    # Background
-                    match codes:
-                        case [2, red, green, blue, *codes]:
-                            style += Style(background=Color(red, green, blue))
-                        case [5, ansi_color, *codes]:
-                            style += Style(
-                                foreground=Color.parse(ANSI_COLORS[ansi_color])
-                            )
-                        case [_, *codes]:
-                            pass
+                case [38, 5, ansi_color, *codes]:
+                    # Foreground ANSI
+                    style += Style(foreground=Color.parse(ANSI_COLORS[ansi_color]))
+                case [48, 5, ansi_color, *codes]:
+                    # Background ANSI
+                    style += Style(background=Color.parse(ANSI_COLORS[ansi_color]))
                 case [_, *codes]:
                     pass
 
@@ -590,6 +579,31 @@ class ANSIStream:
         replace=(0, -1), content=EMPTY_CONTENT, absolute_x=0
     )
 
+    @classmethod
+    @lru_cache(maxsize=1024)
+    def _parse_csi(cls, csi: str) -> ANSISegment | None:
+        if (match := re.match(r"\x1b\[(\d+)([ABCDGKH])", csi)) is not None:
+            match match.groups():
+                case [param, "A"]:
+                    cursor_move = int(param) if param else 1
+                    return ANSISegment(delta_y=-cursor_move)
+                case [param, "B"]:
+                    cursor_move = int(param) if param else 1
+                    return ANSISegment(delta_y=+cursor_move)
+                case [param, "C"]:
+                    cursor_move = int(param) if param else 1
+                    return ANSISegment(delta_x=+cursor_move)
+                case [param, "D"]:
+                    cursor_move = int(param) if param else 1
+                    return ANSISegment(delta_x=-cursor_move)
+                case ["0" | "", "K"]:
+                    return cls.CLEAR_CURSOR_TO_END_OF_LINE
+                case ["1", "K"]:
+                    return cls.CLEAR_CURSOR_TO_BEGINNING_OF_LINE
+                case ["2", "K"]:
+                    return cls.CLEAR_ENTIRE_LINE
+        return None
+
     def on_token(self, token: ANSIToken) -> Iterable[ANSISegment]:
         match token:
             case Separator(separator):
@@ -603,38 +617,20 @@ class ANSIStream:
                         self.current_directory = current_directory
 
             case CSI(csi):
-                terminator = csi[-1]
-                if terminator == "m":
-                    if (sgr_style := self.parse_sgr(csi[2:-1])) is None:
+                if csi.endswith("m"):
+                    if (sgr_style := self._parse_sgr(csi[2:-1])) is None:
                         self.style = NULL_STYLE
                     else:
                         self.style += sgr_style
-                elif (match := re.match(r"\x1b\[(\d+)([ABCDGKH])", csi)) is not None:
-                    match match.groups():
-                        case [param, "A"]:
-                            cursor_move = int(param) if param else 1
-                            yield ANSISegment(delta_y=-cursor_move)
-                        case [param, "B"]:
-                            cursor_move = int(param) if param else 1
-                            yield ANSISegment(delta_y=+cursor_move)
-                        case [param, "C"]:
-                            cursor_move = int(param) if param else 1
-                            yield ANSISegment(delta_x=+cursor_move)
-                        case [param, "D"]:
-                            cursor_move = int(param) if param else 1
-                            yield ANSISegment(delta_x=-cursor_move)
-                        case ["0" | "", "K"]:
-                            yield self.CLEAR_CURSOR_TO_END_OF_LINE
-                        case ["1", "K"]:
-                            yield self.CLEAR_CURSOR_TO_BEGINNING_OF_LINE
-                        case ["2", "K"]:
-                            yield self.CLEAR_ENTIRE_LINE
-
-            case _:
-                if self.style:
-                    content = Content.styled(token.text, self.style)
                 else:
-                    content = Content(token.text)
+                    if (ansi_segment := self._parse_csi(csi)) is not None:
+                        yield ansi_segment
+
+            case ANSIToken(text):
+                if self.style:
+                    content = Content.styled(text, self.style)
+                else:
+                    content = Content(text)
                 yield ANSISegment(delta_x=len(content), content=content)
 
 

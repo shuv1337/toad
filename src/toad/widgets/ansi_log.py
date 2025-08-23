@@ -81,7 +81,6 @@ class ANSILog(ScrollView, can_focus=False):
 
         self.max_line_width = 0
         self.max_window_width = 0
-        self._background_style = Style()
         self._reflow_width: int | None = None
 
         super().__init__(name=name, id=id, classes=classes, disabled=disabled)
@@ -132,9 +131,9 @@ class ANSILog(ScrollView, can_focus=False):
         self.anchor()
 
     def notify_style_update(self) -> None:
+        super().notify_style_update()
         self._clear_caches()
         self._reflow()
-        self._background_style = self.visual_style
 
     def allow_select(self) -> bool:
         return True
@@ -277,7 +276,6 @@ class ANSILog(ScrollView, can_focus=False):
         self._update_virtual_size()
 
     def update_line(self, line_index: int, line: Content) -> None:
-        line.simplify()
         while line_index >= len(self._lines):
             self.add_line(Content())
 
@@ -318,7 +316,7 @@ class ANSILog(ScrollView, can_focus=False):
     def _render_line(self, x: int, y: int, width: int) -> Strip:
         selection = self.text_selection
 
-        visual_style = self._background_style
+        visual_style = self.visual_style
         rich_style = visual_style.rich_style
 
         try:
@@ -358,6 +356,7 @@ class ANSILog(ScrollView, can_focus=False):
             self._render_line_cache[cache_key] = strip
         strip = strip.crop_extend(x, x + width, rich_style)
         strip = strip.apply_offsets(x + offset, line_no)
+
         return strip
 
 

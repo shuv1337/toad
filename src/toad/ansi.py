@@ -521,53 +521,56 @@ class ANSIStream:
     @classmethod
     @lru_cache(maxsize=1024)
     def parse_sgr(cls, sgr: str) -> Style | None:
+        """Parse a SGR (Select Graphics Rendition) code in to a Style instance,
+        or `None` to indicate a reset.
+
+        Args:
+            sgr: SGR sequence.
+
+        Returns:
+            A Visual Style, or `None`.
+        """
         codes = [
-            min(255, int(_code) if _code else 0)
+            code if (code := int(code)) < 255 else 255
             for _code in sgr.split(";")
-            if _code.isdigit() or _code == ""
+            if (code := _code or "0").isdigit()
         ]
         style = NULL_STYLE
-        iter_codes = iter(codes)
-        for code in iter_codes:
-            if code == 0:
-                # reset
-                return None
-            elif code in SGR_STYLE_MAP:
-                # styles
-                style += SGR_STYLE_MAP[code]
-            elif code == 38:
-                #  Foreground
-                with suppress(StopIteration):
-                    color_type = next(iter_codes)
-                    if color_type == 5:
-                        style += Style(
-                            foreground=Color.parse(ANSI_COLORS[next(iter_codes)])
-                        )
-                    elif color_type == 2:
-                        style += Style(
-                            foreground=Color(
-                                next(iter_codes),
-                                next(iter_codes),
-                                next(iter_codes),
+        while codes:
+            # code, *codes = codes
+            match codes:
+                case [0, *codes]:
+                    # reset
+                    return None
+                case [code, *codes] if sgr_style := SGR_STYLE_MAP.get(code):
+                    # styles
+                    style += sgr_style
+                case [38, *codes]:
+                    #  Foreground
+                    match codes:
+                        case [2, red, green, blue, *codes]:
+                            style += Style(foreground=Color(red, green, blue))
+                        case [5, ansi_color, *codes]:
+                            style += Style(
+                                foreground=Color.parse(ANSI_COLORS[ansi_color])
                             )
-                        )
+                        case [_, *codes]:
+                            pass
 
-            elif code == 48:
-                # Background
-                with suppress(StopIteration):
-                    color_type = next(iter_codes)
-                    if color_type == 5:
-                        style += Style(
-                            background=Color.parse(ANSI_COLORS[next(iter_codes)])
-                        )
-                    elif color_type == 2:
-                        style += Style(
-                            background=Color(
-                                next(iter_codes),
-                                next(iter_codes),
-                                next(iter_codes),
+                case [48, *codes]:
+                    # Background
+                    match codes:
+                        case [2, red, green, blue, *codes]:
+                            style += Style(background=Color(red, green, blue))
+                        case [5, ansi_color, *codes]:
+                            style += Style(
+                                foreground=Color.parse(ANSI_COLORS[ansi_color])
                             )
-                        )
+                        case [_, *codes]:
+                            pass
+                case [_, *codes]:
+                    pass
+
         return style
 
     def feed(self, text: str) -> Iterable[ANSISegment]:
@@ -576,13 +579,13 @@ class ANSIStream:
 
     def on_token(self, token: ANSIToken) -> Iterable[ANSISegment]:
         if isinstance(token, Separator):
-            separator = token.text
-            if separator == "\n":
-                yield ANSISegment(delta_y=1, absolute_x=0)
-            elif separator == "\r":
-                yield ANSISegment(absolute_x=0)
-            elif separator == "\x08":
-                yield ANSISegment(delta_x=-1)
+            match token.text:
+                case "\n":
+                    yield ANSISegment(delta_y=1, absolute_x=0)
+                case "\r":
+                    yield ANSISegment(absolute_x=0)
+                case "\x08":
+                    yield ANSISegment(delta_x=-1)
 
         elif isinstance(token, OSC):
             osc = token.text
@@ -608,33 +611,37 @@ class ANSIStream:
                     self.style += sgr_style
             elif (match := re.match(r"\x1b\[(\d+)([ABCDGKH])", token_text)) is not None:
                 param, move_type = match.groups()
-                if move_type == "A":
-                    cursor_move = int(param) if param else 1
-                    yield ANSISegment(delta_y=-cursor_move)
-                elif move_type == "B":
-                    cursor_move = int(param) if param else 1
-                    yield ANSISegment(delta_y=+cursor_move)
-                elif move_type == "C":
-                    cursor_move = int(param) if param else 1
-                    yield ANSISegment(delta_x=+cursor_move)
-                elif move_type == "D":
-                    cursor_move = int(param) if param else 1
-                    yield ANSISegment(delta_x=-cursor_move)
-                elif move_type == "K":
-                    erase_type = int(param) if param else 0
-                    if erase_type == 0:
-                        # Clear from cursor to end of line
-                        yield ANSISegment(replace=(None, -1), content=Content(""))
-                    elif erase_type == 1:
-                        # clear from cursor to beginning of line
-                        yield ANSISegment(replace=(0, None), content=Content(""))
-                    elif erase_type == 2:
-                        # clear entire line
-                        yield ANSISegment(
-                            replace=(0, -1), content=Content(""), absolute_x=0
-                        )
-                else:
-                    1 / 0
+                match move_type:
+                    case "A":
+                        cursor_move = int(param) if param else 1
+                        yield ANSISegment(delta_y=-cursor_move)
+                    case "B":
+                        cursor_move = int(param) if param else 1
+                        yield ANSISegment(delta_y=+cursor_move)
+                    case "C":
+                        cursor_move = int(param) if param else 1
+                        yield ANSISegment(delta_x=+cursor_move)
+                    case "D":
+                        cursor_move = int(param) if param else 1
+                        yield ANSISegment(delta_x=-cursor_move)
+                    case "K":
+                        erase_type = int(param) if param else 0
+                        match erase_type:
+                            case 0:
+                                # Clear from cursor to end of line
+                                yield ANSISegment(
+                                    replace=(None, -1), content=Content("")
+                                )
+                            case 1:
+                                # clear from cursor to beginning of line
+                                yield ANSISegment(
+                                    replace=(0, None), content=Content("")
+                                )
+                            case 2:
+                                # clear entire line
+                                yield ANSISegment(
+                                    replace=(0, -1), content=Content(""), absolute_x=0
+                                )
 
         else:
             if self.style:

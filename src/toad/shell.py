@@ -37,6 +37,7 @@ class Shell:
     def __init__(self, conversation: Conversation) -> None:
         self.conversation = conversation
         self.ansi_log: ANSILog | None = None
+        self.new_log: bool = False
         self.shell = os.environ.get("SHELL", "sh")
         self.master = 0
         self._task: asyncio.Task | None = None

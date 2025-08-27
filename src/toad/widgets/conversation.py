@@ -423,10 +423,10 @@ class Conversation(containers.Vertical):
     @property
     def cursor_block(self) -> Widget | None:
         """The block next to the cursor, or `None` if no block cursor."""
-        if self.cursor_offset == -1 or not self.contents.children:
+        if self.cursor_offset == -1 or not self.contents.displayed_children:
             return None
         try:
-            block_widget = self.contents.children[self.cursor_offset]
+            block_widget = self.contents.displayed_children[self.cursor_offset]
         except IndexError:
             return None
         return block_widget
@@ -558,18 +558,23 @@ class Conversation(containers.Vertical):
             return
         if widget is None:
             return
-        if widget in contents.children:
-            self.cursor_offset = contents.children.index(widget)
+        if widget in contents.displayed_children:
+            self.cursor_offset = contents.displayed_children.index(widget)
             self.refresh_block_cursor()
             return
         for parent in widget.ancestors:
             if not isinstance(parent, Widget):
                 break
-            if (parent is self or parent is contents) and widget in contents.children:
-                self.cursor_offset = contents.children.index(widget)
+            if (
+                parent is self or parent is contents
+            ) and widget in contents.displayed_children:
+                self.cursor_offset = contents.displayed_children.index(widget)
                 break
-            if isinstance(parent, BlockProtocol) and parent in contents.children:
-                self.cursor_offset = contents.children.index(parent)
+            if (
+                isinstance(parent, BlockProtocol)
+                and parent in contents.displayed_children
+            ):
+                self.cursor_offset = contents.displayed_children.index(parent)
                 parent.block_select(widget)
                 break
             widget = parent
@@ -608,12 +613,12 @@ class Conversation(containers.Vertical):
         )
 
     def action_cursor_up(self) -> None:
-        if not self.contents.children or self.cursor_offset == 0:
+        if not self.contents.displayed_children or self.cursor_offset == 0:
             # No children
             return
         if self.cursor_offset == -1:
             # Start cursor at end
-            self.cursor_offset = len(self.contents.children) - 1
+            self.cursor_offset = len(self.contents.displayed_children) - 1
             cursor_block = self.cursor_block
             if isinstance(cursor_block, BlockProtocol):
                 cursor_block.block_cursor_clear()
@@ -637,7 +642,7 @@ class Conversation(containers.Vertical):
         self.refresh_block_cursor()
 
     def action_cursor_down(self) -> None:
-        if not self.contents.children or self.cursor_offset == -1:
+        if not self.contents.displayed_children or self.cursor_offset == -1:
             # No children, or no cursor
             return
 
@@ -645,7 +650,7 @@ class Conversation(containers.Vertical):
         if isinstance(cursor_block, BlockProtocol):
             if cursor_block.block_cursor_down() is None:
                 self.cursor_offset += 1
-                if self.cursor_offset >= len(self.contents.children):
+                if self.cursor_offset >= len(self.contents.displayed_children):
                     self.cursor_offset = -1
                     self.refresh_block_cursor()
                     return
@@ -655,7 +660,7 @@ class Conversation(containers.Vertical):
                     cursor_block.block_cursor_down()
         else:
             self.cursor_offset += 1
-            if self.cursor_offset >= len(self.contents.children):
+            if self.cursor_offset >= len(self.contents.displayed_children):
                 self.cursor_offset = -1
                 self.refresh_block_cursor()
                 return
@@ -664,19 +669,6 @@ class Conversation(containers.Vertical):
                 cursor_block.block_cursor_clear()
                 cursor_block.block_cursor_down()
         self.refresh_block_cursor()
-
-        # cursor_block = self.cursor_block
-        # self.log(cursor_block)
-        # if isinstance(cursor_block, BlockProtocol):
-        #     print("down")
-        #     if cursor_block.block_cursor_down() is not None:
-        #         self.refresh_block_cursor()
-        #         return
-
-        # if self.cursor_offset >= len(self.contents.children) - 1:
-        #     self.cursor_offset = -1
-        # else:
-        #     self.cursor_offset += 1
 
     def action_dismiss(self) -> None:
         self.cursor_offset = -1

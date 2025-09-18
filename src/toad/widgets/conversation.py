@@ -452,8 +452,11 @@ class Conversation(containers.Vertical):
         from toad.widgets.agent_response import AgentResponse
 
         if self._agent_response is None:
-            self._agent_response = AgentResponse(self.conversation, None)
+            self._agent_response = agent_response = AgentResponse(
+                self.conversation, None
+            )
             await self.post(self._agent_response)
+            return agent_response
 
         return self._agent_response
 
@@ -522,7 +525,7 @@ class Conversation(containers.Vertical):
                 # self.agent_response = agent_response
                 # await self.post(agent_response, loading=True)
                 await self.get_agent_thought()
-                await self.get_agent_response()
+                # await self.get_agent_response()
                 self.send_prompt_to_agent(text)
 
                 # agent_response.send_prompt(
@@ -533,7 +536,11 @@ class Conversation(containers.Vertical):
     @work
     async def send_prompt_to_agent(self, prompt: str) -> None:
         if self.agent is not None:
-            stop_reason = await self.agent.send_prompt(prompt)
+            self.busy_count += 1
+            try:
+                stop_reason = await self.agent.send_prompt(prompt)
+            finally:
+                self.busy_count -= 1
             await self.agent_turn_over(stop_reason)
 
     async def agent_turn_over(self, stop_reason: str | None) -> None:
@@ -542,6 +549,9 @@ class Conversation(containers.Vertical):
         Args:
             stop_reason: The stop reason returned from the Agent, or `None`.
         """
+        if self._agent_thought is not None and self._agent_thought.loading:
+            await self._agent_thought.remove()
+
         self._agent_response = None
         self._agent_thought = None
 
@@ -589,6 +599,8 @@ class Conversation(containers.Vertical):
     @on(acp_messages.ACPUpdate)
     async def on_acp_agent_message(self, message: acp_messages.ACPUpdate):
         message.stop()
+        if self._agent_thought and self._agent_thought.loading:
+            await self._agent_thought.remove()
         agent_response = await self.get_agent_response()
         await agent_response.append_fragment(message.text)
 

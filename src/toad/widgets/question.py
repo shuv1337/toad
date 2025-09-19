@@ -121,7 +121,7 @@ class Question(Widget, can_focus=True):
             color: $text-primary;
         }                
         &.-blink Option.-active #caret {
-            visibility: hidden !important;
+            opacity: 0.2;
         }
     }
     """

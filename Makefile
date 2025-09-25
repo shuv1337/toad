@@ -7,7 +7,7 @@ run:
 
 .PHONY: gemini-acp
 gemini-acp:
-	$(run) acp "gemini --experimental-acp"
+	$(run) acp "gemini --experimental-acp" --project-dir ~/sandbox
 
 .PHONY: claude-acp
 claude-acp:

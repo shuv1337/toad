@@ -39,9 +39,18 @@ class AuthMethod(SchemaDict, total=False):
     name: Required[str]
 
 
+# https://agentclientprotocol.com/protocol/schema#envvariable
 class EnvVariable(SchemaDict, total=False):
-    name: str
-    value: str
+    _meta: dict
+    name: Required[str]
+    value: Required[str]
+
+
+# https://agentclientprotocol.com/protocol/schema#terminalexitstatus
+class TerminalExitStatus(SchemaDict, total=False):
+    _meta: dict
+    exitCode: int | None
+    signal: str | None
 
 
 # https://agentclientprotocol.com/protocol/schema#mcpserver
@@ -324,5 +333,33 @@ class RequestPermissionResponse(TypedDict, total=False):
     _meta: dict
     outcome: Required[RequestPermissionOutcome]
 
+
+# https://agentclientprotocol.com/protocol/schema#createterminalresponse
+class CreateTerminalResponse(TypedDict, total=False):
+    _meta: dict
+    terminalId: Required[str]
+
+
+https://agentclientprotocol.com/protocol/schema#killterminalcommandresponse
+class KillTerminalCommandResponse(TypedDict, total=False):
+    _meta: dict
+
+
+# https://agentclientprotocol.com/protocol/schema#terminaloutputresponse
+class TerminalOutputResponse(TypedDict, total=False):
+    _meta: dict
+    exitStatus: TerminalExitStatus | None
+    output: Required[str]
+    truncated: Required[bool]
+
+# https://agentclientprotocol.com/protocol/schema#releaseterminalresponse
+class ReleaseTerminalResponse(TypedDict, total=False):
+    _meta: dict
+
+# https://agentclientprotocol.com/protocol/schema#waitforterminalexitresponse
+class WaitForTerminalExitResponse(TypedDict, total=False):
+    _meta: dict
+    exitCode: int | None
+    signal: str | None
 
 # ---------------------------------------------------------------------------------------

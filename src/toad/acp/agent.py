@@ -227,13 +227,56 @@ class Agent(AgentBase):
         write_path = self.project_root_path / path
         write_path.write_text(content, encoding="utf-8", errors="ignore")
 
+    # https://agentclientprotocol.com/protocol/schema#createterminalrequest
+    @jsonrpc.expose("terminal/create")
+    def rpc_terminal_create(
+        self,
+        command: str,
+        _meta: dict | None = None,
+        args: list[str] | None = None,
+        cwd: str | None = None,
+        env: list[protocol.EnvVariable] | None = None,
+        outputByteLimit: str | None = None,
+        sessionId: str | None = None,
+    ) -> protocol.CreateTerminalResponse:
+        return {"terminalId": ""}
+
+    # https://agentclientprotocol.com/protocol/schema#killterminalcommandrequest
+    @jsonrpc.expose("terminal/kill")
+    def rpc_terminal_kill(
+        self, sessionID: str, terminalId: str, _meta: dict | None = None
+    ) -> protocol.KillTerminalCommandResponse:
+        return {}
+
+    # https://agentclientprotocol.com/protocol/schema#terminal%2Foutput
+    @jsonrpc.expose("terminal/output")
+    def rpc_terminal_output(
+        self, sessionId: str, terminalId: str, _meta: dict | None = None
+    ) -> protocol.TerminalOutputResponse:
+        output = ""
+        truncated = False
+        return {"output": output, "truncated": truncated}
+
+    # https://agentclientprotocol.com/protocol/schema#terminal%2Frelease
+    @jsonrpc.expose("terminal/release")
+    def rpc_terminal_release(
+        self, sessionId: str, terminalId: str, _meta: dict | None = None
+    ) -> protocol.ReleaseTerminalResponse:
+        return {}
+
+    # https://agentclientprotocol.com/protocol/schema#terminal%2Fwait-for-exit
+    @jsonrpc.expose("terminal/wait_for_exit")
+    def rpc_terminal_wait_for_exit(
+        self, sessionId: str, terminalId: str, _meta: dict | None = None
+    ) -> protocol.WaitForTerminalExitResponse:
+        return {}
+
     async def _run_agent(self) -> None:
         """Task to communicate with the agent subprocess."""
 
         agent_output = open("agent.jsonl", "wb")
 
         PIPE = asyncio.subprocess.PIPE
-        print("COMMAND", repr(self.command))
         env = os.environ.copy()
         env["TOAD_CWD"] = str(Path("./").absolute())
         process = self._process = await asyncio.create_subprocess_shell(
@@ -244,8 +287,6 @@ class Agent(AgentBase):
             env=env,
             cwd=str(self.project_root_path),
         )
-        print(process)
-        print(process.stdout)
 
         self._task = asyncio.create_task(self.run())
 

@@ -613,7 +613,7 @@ class ANSIStream:
             Ansi segment, or `None` if one couldn't be decoded.
         """
         if match := re.fullmatch(r"\x1b\[(\d+)?(?:;)?(\d*)?(\w)", csi):
-            match match.groups():
+            match match.groups(default=""):
                 case [lines, "", "A"]:
                     return ANSISegment(delta_y=-int(lines or 1))
                 case [lines, "", "B"]:

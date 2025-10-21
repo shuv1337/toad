@@ -223,7 +223,7 @@ class ToadApp(App):
 
     @property
     def settings_path(self) -> Path:
-        return self.config_path / "settings.json"
+        return Path("~/.toad.json").expanduser().absolute()
 
     @cached_property
     def settings_schema(self) -> Schema:
@@ -275,7 +275,7 @@ class ToadApp(App):
         if settings_path.exists():
             settings = json.loads(settings_path.read_text("utf-8"))
         else:
-            settings = self.settings_schema.defaults
+            settings = {}
             settings_path.write_text(
                 json.dumps(settings, indent=4, separators=(", ", ": ")), "utf-8"
             )

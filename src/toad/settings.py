@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import copy
 from functools import cached_property
 from json import dumps
 from dataclasses import dataclass
@@ -290,9 +291,7 @@ class Settings:
                         f"key {sub_key!r} is not of expected type {expect_type.__name__}"
                     )
                 return value
-            if not isinstance(
-                (sub_settings := sub_settings.setdefault(sub_key, {})), dict
-            ):
+            if not isinstance((sub_settings := sub_settings.get(sub_key, {})), dict):
                 default = self._schema.get_default(key)
                 if default is None:
                     default = expect_type()
@@ -309,11 +308,16 @@ class Settings:
             key: Key in dot notation.
             value: New value.
         """
-        setting = self._settings
+        current_value = self.get(key, expand=False)
+
+        updated_settings = copy.deepcopy(self._settings)
+
+        setting = updated_settings
         for last, sub_key in loop_last(parse_key(key)):
             if last:
-                if setting.get(sub_key) != value:
+                if current_value != value:
                     self._changed = True
+                    self._settings = updated_settings
                 assert isinstance(setting, dict)
                 setting[sub_key] = value
             else:
@@ -324,7 +328,6 @@ class Settings:
                     assert isinstance(setting, dict)
                     setting[sub_key] = {}
                     setting = setting[sub_key]
-                    self._changed = True
 
         if self._on_set_callback is not None:
             self._on_set_callback(key, value)

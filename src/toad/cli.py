@@ -18,20 +18,22 @@ def main(ctx):
 @click.argument("command", metavar="COMMAND")
 @click.option("--project-dir", metavar="PATH", default=None)
 def acp(command: str, project_dir: str | None) -> None:
+    """Run an ACP client."""
     app = ToadApp(acp_command=command, project_dir=project_dir)
     app.run()
 
 
 @main.command("settings")
 def settings() -> None:
+    """Configure settings."""
     app = ToadApp()
-    print(f'{app.settings_path}')
-    
-    
+    print(f"{app.settings_path}")
+
 
 @main.command("replay")
 @click.argument("path", metavar="PATH.jsonl")
 def replay(path: str) -> None:
+    """Replay interaction from a jsonl file."""
     import time
 
     stdout = sys.stdout.buffer

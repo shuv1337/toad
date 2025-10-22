@@ -521,7 +521,8 @@ class Conversation(containers.Vertical):
             await self.shell.interrupt()
             self._shell = None
             self.flash("Command interrupted", style="success")
-        raise SkipAction()
+        else:
+            raise SkipAction()
 
     @work
     @on(acp_messages.CreateTerminal)

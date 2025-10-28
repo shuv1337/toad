@@ -733,7 +733,25 @@ class Conversation(containers.Vertical):
         message.stop()
         if message.shell or not message.body.strip():
             await self.shell_history.open()
-            self.shell_history_index += message.direction
+            if self.shell_history_index == 0:
+                current_shell_command = ""
+            else:
+                current_shell_command = (
+                    await self.shell_history.get_entry(self.shell_history_index)
+                )["input"]
+            while True:
+                self.shell_history_index += message.direction
+                new_entry = await self.shell_history.get_entry(self.shell_history_index)
+                if (new_entry)["input"] != current_shell_command:
+                    break
+                if message.direction == +1 and self.shell_history_index == 0:
+                    break
+                if (
+                    message.direction == -1
+                    and self.shell_history_index <= -self.shell_history.size
+                ):
+                    break
+
         else:
             await self.prompt_history.open()
             self.prompt_history_index += message.direction

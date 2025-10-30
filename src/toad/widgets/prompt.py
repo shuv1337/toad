@@ -517,7 +517,7 @@ class Prompt(containers.VerticalGroup):
     @property
     def likely_shell(self) -> bool:
         text = self.prompt_text_area.text
-        if "\n" in text or " " in text:
+        if "\n" in text or " " in text or not text.strip():
             return False
 
         shell_commands = {

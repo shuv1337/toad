@@ -8,14 +8,15 @@ from textual.command import Hit, Hits, Provider, DiscoveryHit
 from textual.screen import Screen
 from textual.reactive import var, reactive
 from textual import getters
+from textual import widgets
 from textual.widgets import Footer, OptionList, DirectoryTree
 from textual import containers
 
 
 from toad.widgets.throbber import Throbber
 from toad.widgets.conversation import Conversation
-from toad.widgets.explain import Explain
 from toad.widgets.version import Version
+from toad.widgets.side_bar import SideBar
 
 
 class ModeProvider(Provider):
@@ -66,7 +67,8 @@ class MainScreen(Screen, can_focus=False):
     busy_count = var(0)
     throbber: getters.query_one[Throbber] = getters.query_one("#throbber")
     conversation = getters.query_one(Conversation)
-    directory_tree = getters.query_one(DirectoryTree)
+    side_bar = getters.query_one(SideBar)
+    project_directory_tree = getters.query_one("#project_directory_tree")
 
     column = reactive(False)
     column_width = reactive(100)
@@ -79,16 +81,27 @@ class MainScreen(Screen, can_focus=False):
         self.set_reactive(MainScreen.project_path, project_path)
 
     def compose(self) -> ComposeResult:
-        yield Version("Toad v0.1")
+        # yield Version("Toad v0.1")
         with containers.Center():
-            yield DirectoryTree("./")
-            yield Explain()
+            # yield DirectoryTree("./")
+            yield SideBar(
+                SideBar.Panel("Plan", widgets.Static("hello")),
+                SideBar.Panel(
+                    "Project",
+                    DirectoryTree(self.project_path, id="project_directory_tree"),
+                    flex=True,
+                ),
+            )
+
             yield Conversation(self.project_path).data_bind(MainScreen.project_path)
         yield Footer()
 
     def on_mount(self) -> None:
-        # self.directory_tree.show_guides = False
-        self.directory_tree.guide_depth = 3
+        for tree in self.query("#project_directory_tree").results(DirectoryTree):
+            tree.data_bind(path=MainScreen.project_path)
+        for tree in self.query(DirectoryTree):
+            tree.show_guides = False
+            tree.guide_depth = 3
 
     @on(OptionList.OptionHighlighted)
     def on_option_list_option_highlighted(
@@ -115,7 +128,7 @@ class MainScreen(Screen, can_focus=False):
         self.conversation.focus_prompt()
 
     def watch_column(self, column: bool) -> None:
-        self.set_class(column, "-column")
+        self.conversation.set_class(column, "-column")
         self.conversation.styles.max_width = (
             max(10, self.column_width) if column else None
         )

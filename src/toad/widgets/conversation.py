@@ -44,7 +44,6 @@ from toad.widgets.note import Note
 from toad.widgets.prompt import Prompt
 from toad.widgets.throbber import Throbber
 from toad.widgets.user_input import UserInput
-from toad.widgets.explain import Explain
 from toad.shell import Shell, CurrentWorkingDirectoryChanged, ShellFinished
 from toad.slash_command import SlashCommand
 from toad.protocol import BlockProtocol, MenuProtocol, ExpandProtocol
@@ -210,8 +209,8 @@ class Conversation(containers.Vertical):
     prompt = getters.query_one(Prompt)
     app = getters.app(ToadApp)
     _shell: var[Shell | None] = var(None)
-    shell_history_index: var[int] = var(0)
-    prompt_history_index: var[int] = var(0)
+    shell_history_index: var[int] = var(0, init=False)
+    prompt_history_index: var[int] = var(0, init=False)
 
     agent: var[AgentBase | None] = var(None, bindings=True)
     agent_info: var[Content] = var(Content())
@@ -1230,14 +1229,6 @@ class Conversation(containers.Vertical):
         import webbrowser
 
         webbrowser.open(f"file:///{svg_path}")
-
-    def action_explain(self, topic: str | None = None) -> None:
-        if (block := self.get_cursor_block(MarkdownBlock)) is not None and block.source:
-            if topic:
-                PROMPT = f"Explain the purpose of '{topic}' in the following code:\n{block.source}"
-            else:
-                PROMPT = f"Explain the following:\n{block.source}"
-            self.screen.query_one(Explain).send_prompt(PROMPT)
 
     @work
     async def action_settings(self) -> None:

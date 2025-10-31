@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from textual.app import ComposeResult
 from textual.content import Content
+from textual.layout import Layout
 from textual.reactive import reactive
 from textual import containers
 from textual.widgets import Static
@@ -26,7 +27,7 @@ class Plan(containers.Grid):
         border: tall transparent;
         
         grid-size: 2;
-        grid-columns: auto auto 1fr;
+        grid-columns: auto 1fr;
         grid-rows: auto;
         height: auto;        
     
@@ -95,14 +96,10 @@ class Plan(containers.Grid):
 
     def compose(self) -> ComposeResult:
         if not self.entries:
+            yield Static("No plan yet", classes="-no-plan")
             return
         for entry in self.entries:
             classes = f"priority-{entry.priority} status-{entry.status}"
-            # yield NonSelectableStatic(
-            #     self.PRIORITIES[entry.priority],
-            #     classes=f"priority {classes}",
-            # ).with_tooltip(f"priority: {entry.priority}")
-
             yield NonSelectableStatic(
                 self.render_status(entry.status),
                 classes=f"status {classes}",

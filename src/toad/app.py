@@ -278,6 +278,8 @@ class ToadApp(App, inherit_bindings=False):
             self.set_class(not bool(value), "-hide-footer")
         elif key == "agent.thoughts":
             self.set_class(not bool(value), "-hide-thoughts")
+        elif key == "sidebar.hide":
+            self.set_class(bool(value), "-hide-sidebar")
 
         self.settings_changed_signal.publish((key, value))
 

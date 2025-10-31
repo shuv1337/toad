@@ -95,6 +95,7 @@ class PromptTextArea(HighlightedTextArea):
             "Complete",
             tooltip="Complete path (if possible)",
             priority=True,
+            show=False,
         ),
     ]
 

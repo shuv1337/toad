@@ -3,16 +3,18 @@ from pathlib import Path
 
 from textual import on
 from textual.app import ComposeResult
+from toad.acp import messages as acp_messages
 from textual.binding import Binding
 from textual.command import Hit, Hits, Provider, DiscoveryHit
+from textual.content import Content
 from textual.screen import Screen
 from textual.reactive import var, reactive
 from textual import getters
-from textual import widgets
 from textual.widgets import Footer, OptionList, DirectoryTree
 from textual import containers
 
 
+from toad.widgets.plan import Plan
 from toad.widgets.throbber import Throbber
 from toad.widgets.conversation import Conversation
 from toad.widgets.side_bar import SideBar
@@ -59,7 +61,6 @@ class MainScreen(Screen, can_focus=False):
     COMMANDS = {ModeProvider}
     BINDINGS = [
         Binding("f3", "show_sidebar", "Sidebar"),
-        Binding("f3", "hide_sidebar", "Hide sidebar"),
     ]
 
     BINDING_GROUP_TITLE = "Screen"
@@ -81,18 +82,32 @@ class MainScreen(Screen, can_focus=False):
     def compose(self) -> ComposeResult:
         # yield Version("Toad v0.1")
         with containers.Center():
-            # yield DirectoryTree("./")
             yield SideBar(
-                SideBar.Panel("Plan", widgets.Static("hello")),
+                SideBar.Panel("Plan", Plan([])),
                 SideBar.Panel(
                     "Project",
-                    DirectoryTree(self.project_path, id="project_directory_tree"),
+                    DirectoryTree(
+                        self.project_path,
+                        id="project_directory_tree",
+                    ),
                     flex=True,
                 ),
             )
-
             yield Conversation(self.project_path).data_bind(MainScreen.project_path)
         yield Footer()
+
+    @on(acp_messages.Plan)
+    async def on_acp_plan(self, message: acp_messages.Plan):
+        message.stop()
+        entries = [
+            Plan.Entry(
+                Content(entry["content"]),
+                entry.get("priority", "medium"),
+                entry.get("status", "pending"),
+            )
+            for entry in message.entries
+        ]
+        self.query_one("SideBar Plan", Plan).entries = entries
 
     def on_mount(self) -> None:
         for tree in self.query("#project_directory_tree").results(DirectoryTree):
@@ -111,19 +126,17 @@ class MainScreen(Screen, can_focus=False):
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action == "show_sidebar" and self.side_bar.has_focus_within:
             return False
-        if action == "hide_sidebar" and not self.side_bar.has_focus_within:
-            return False
-        # if action == "hide_sidebar" and not self.show_sidebar:
-        #     return False
         return True
 
     def action_show_sidebar(self) -> None:
         self.side_bar.query_one("Collapsible CollapsibleTitle").focus()
 
-    def action_hide_sidebar(self) -> None:
+    def action_focus_prompt(self) -> None:
         self.conversation.focus_prompt()
 
-    def action_focus_prompt(self) -> None:
+    @on(SideBar.Dismiss)
+    def on_side_bar_dismiss(self, message: SideBar.Dismiss):
+        message.stop()
         self.conversation.focus_prompt()
 
     def watch_column(self, column: bool) -> None:

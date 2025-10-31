@@ -28,6 +28,13 @@ App.-hide-thoughts AgentThought {
     display: none;
 }
 
+App.-hide-sidebar SideBar {
+    display: none;
+    &:focus-within {            
+        display: block;
+    }
+}
+
 Note,MarkdownNote {
     padding: 0 1 0 0;
     &.about MarkdownTable {
@@ -71,6 +78,52 @@ Loading {
 }
 
 
+
+Plan {        
+    border: panel $secondary;        
+    background: transparent;        
+    margin: 1 0 1 0 !important;   # Special case because the tall border reduces the apparent width           
+    padding: 1 0 0 1;        
+    height: auto;                        
+    grid-size: 2;
+    grid-columns: auto auto 1fr;
+    grid-rows: auto;        
+
+    .-no-plan {
+        text-style: dim italic;
+
+    }
+
+    .plan {
+        color: $text-secondary;
+    }
+    .status {
+        padding: 0 0 0 0;
+        color: $text-secondary;
+    }
+    .priority {
+        padding: 0 0 0 0;
+    }
+    .status.status-completed {
+        color: $text-success;            
+    }
+    .status-pending {
+        opacity: 0.7;
+    }
+    .plan.status-completed {
+        
+    }        
+}
+
+SideBar Plan {
+    border: none;
+    margin: 0 !important;
+    padding: 0 1 0 0;    
+    .plan {
+        color: $text-secondary;    
+    }
+}
+
 Conversation {
     
     Window {
@@ -97,10 +150,7 @@ Conversation {
     }
 
     height: 1fr;    
-    
     layers: base prompt float;        
-
-    
 
     &.-column {
         max-width: 100;             
@@ -184,36 +234,6 @@ Conversation {
         }
     }
 
-    Plan {        
-        border: panel $secondary;        
-        background: transparent;        
-        margin: 1 0 1 0 !important;   # Special case because the tall border reduces the apparent width           
-        padding: 1 0 0 1;        
-        height: auto;                        
-        grid-size: 2;
-        grid-columns: auto auto 1fr;
-        grid-rows: auto;        
-    
-        .plan {
-            color: $text-secondary;
-        }
-        .status {
-            padding: 0 0 0 0;
-            color: $text-secondary;
-        }
-        .priority {
-            padding: 0 0 0 0;
-        }
-        .status.status-completed {
-            color: $text-success;            
-        }
-        .status-pending {
-            opacity: 0.7;
-        }
-        .plan.status-completed {
-            
-        }        
-    }
 
     ToolCall {                        
         margin: 1 1 1 0 !important;   # Special case because the tall border reduces the apparent width           
@@ -489,26 +509,20 @@ ModeSwitcher {
 
 MainScreen {    
     background: $background;
-
     layers: screen base;
 
 
-
     SideBar {
-        border-right: tall black 50%;
+        border-right: tall black 10%;
         background: transparent;
               
         dock: left;
         padding: 0 0;
         margin: 0;
-        width: auto;
+        width: 40;
         max-width: 45%;
         min-width: 40;
-        # display: none;
-
-        &:focus-within {            
-            display: block;
-        }
+                
 
         DirectoryTree {
             background: transparent;
@@ -517,13 +531,30 @@ MainScreen {
             }            
         }
 
-        Collapsible {
+        
+        Collapsible {   
             expand: optimal;
-            width: 1fr;            
+            width: 1fr;                  
+            height: 1fr;              
+            min-height: 3;
+
+            &.-collapsed {
+                height: auto;
+            }
+
+            &.-fixed {                
+                height: auto;
+            }
+                                
             Contents {                
-                width:  1fr;                 
+                width: 1fr;
+                height: auto;
+                max-height: 100%;
+                padding: 0;
+                margin: 1 0 0 0;                
             }
         }
+
 
     }
 

@@ -553,7 +553,6 @@ class Conversation(containers.Vertical):
 
     @on(acp_messages.Plan)
     async def on_acp_plan(self, message: acp_messages.Plan):
-        message.stop()
         from toad.widgets.plan import Plan
 
         entries = [

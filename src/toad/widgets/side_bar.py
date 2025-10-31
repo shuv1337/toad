@@ -64,6 +64,9 @@ class SideBar(containers.Vertical):
         self.panels: list[SideBar.Panel] = [*panels]
         self.hide = hide
 
+    def on_mount(self) -> None:
+        self.trap_focus()
+
     def compose(self) -> ComposeResult:
         for panel in self.panels:
             yield widgets.Collapsible(

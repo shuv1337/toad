@@ -1,29 +1,29 @@
-from textual import containers
+from dataclasses import dataclass
 
+from textual import containers
 from textual.binding import Binding
+from textual import events
+from textual.message import Message
 from textual.reactive import reactive
 from textual.layouts.grid import GridLayout
+from textual.widget import Widget
 
 
 class GridSelect(containers.ItemGrid, can_focus=True):
-    DEFAULT_CSS = """
-    GridSelect {
-        width: 1fr;
-        height: auto;
-        border: red;
-        layout: grid;
-    }
-    """
-
     highlighted = reactive(0)
 
-    CURSOR_GROUP = Binding.Group("Cursor", compact=True)
+    CURSOR_GROUP = Binding.Group("Move selection", compact=False)
     BINDINGS = [
         Binding("up", "cursor_up", "Cursor Up", group=CURSOR_GROUP),
         Binding("down", "cursor_down", "Cursor Down", group=CURSOR_GROUP),
         Binding("left", "cursor_left", "Cursor Left", group=CURSOR_GROUP),
         Binding("right", "cursor_right", "Cursor Right", group=CURSOR_GROUP),
+        Binding("enter", "select", "Select"),
     ]
+
+    @dataclass
+    class Selected(Message):
+        selected_widget: Widget
 
     def __init__(
         self,
@@ -38,6 +38,18 @@ class GridSelect(containers.ItemGrid, can_focus=True):
         assert isinstance(self.layout, GridLayout)
         return self.layout.grid_size
 
+    def on_focus(self):
+        self.reveal_highlight()
+
+    def reveal_highlight(self):
+        try:
+            highlighted_widget = self.children[self.highlighted]
+        except IndexError:
+            pass
+        else:
+            if not self.screen.can_view_entire(highlighted_widget):
+                self.screen.scroll_to_center(highlighted_widget, origin_visible=True)
+
     def watch_highlighted(self, old_highlighted: int, highlighted: int) -> None:
         try:
             self.children[old_highlighted].remove_class("-highlight")
@@ -46,10 +58,9 @@ class GridSelect(containers.ItemGrid, can_focus=True):
         try:
             highlighted_widget = self.children[highlighted]
             highlighted_widget.add_class("-highlight")
-            if not self.screen.can_view_entire(highlighted_widget):
-                self.screen.scroll_to_center(highlighted_widget, origin_visible=True)
         except IndexError:
             pass
+        self.reveal_highlight()
 
     def validate_highlighted(self, highlighted: int) -> int:
         if highlighted < 0:
@@ -78,6 +89,26 @@ class GridSelect(containers.ItemGrid, can_focus=True):
     def action_cursor_right(self):
         self.highlighted += 1
 
+    def on_click(self, event: events.Click) -> None:
+        highlighted_widget: Widget | None = None
+        try:
+            highlighted_widget = self.children[self.highlighted]
+        except IndexError:
+            pass
+        if event.widget in self.children:
+            if highlighted_widget is event.widget:
+                self.action_select()
+            else:
+                self.highlighted = self.children.index(event.widget)
+
+    def action_select(self):
+        try:
+            highlighted_widget = self.children[self.highlighted]
+        except IndexError:
+            pass
+        else:
+            self.post_message(self.Selected(highlighted_widget))
+
 
 if __name__ == "__main__":
     from textual.app import App, ComposeResult
@@ -87,7 +118,7 @@ if __name__ == "__main__":
         CSS = """
         .grid-item {
             width: 1fr;
-            padding: 1 1;
+            padding: 0 1;
             # background: blue 20%;        
             border: blank;
 
@@ -100,6 +131,7 @@ if __name__ == "__main__":
         """
 
         def compose(self) -> ComposeResult:
+            yield widgets.Footer()
             with GridSelect():
                 for n in range(50):
                     yield widgets.Label(

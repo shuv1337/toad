@@ -123,7 +123,7 @@ class CommandPane(Terminal):
 if __name__ == "__main__":
     from textual.app import App, ComposeResult
 
-    COMMAND = """python cursor_test.py"""
+    COMMAND = """htop"""
 
     class CommandApp(App):
         CSS = """
@@ -134,7 +134,7 @@ if __name__ == "__main__":
             # background: blue 20%;
             scrollbar-gutter: stable;
             background: black 10%;
-            max-height: 20;
+            max-height: 40;
             # border: green;
             border: tab $text-primary;            
             margin: 0 2;

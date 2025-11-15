@@ -36,7 +36,7 @@ class Terminal(ScrollView):
         self.max_line_width = 0
         self.max_window_width = 0
 
-        self._render_cache: LRUCache[tuple, Strip] = LRUCache(1024)
+        self._terminal_render_cache: LRUCache[tuple, Strip] = LRUCache(1024)
 
     def get_selection(self, selection: Selection) -> tuple[str, str] | None:
         """Get the text under the selection.
@@ -53,7 +53,7 @@ class Terminal(ScrollView):
         return selection.extract(text), "\n"
 
     def _on_resize(self, event: events.Resize) -> None:
-        self._render_cache.grow(event.size.height * 2)
+        self._terminal_render_cache.grow(event.size.height * 2)
         self._update_width()
 
     def _update_width(self) -> None:
@@ -70,7 +70,7 @@ class Terminal(ScrollView):
         )
         self._width = width
         self.state.update_size(width=self._width)
-        self._render_cache.clear()
+        self._terminal_render_cache.clear()
         self.refresh()
 
     def on_mount(self) -> None:
@@ -106,13 +106,21 @@ class Terminal(ScrollView):
         state = self.state
         buffer = state.buffer
 
+        buffer = state.scrollback_buffer
+        buffer_offset = 0
+        if y > len(buffer.folded_lines):
+            buffer_offset = len(buffer.folded_lines)
+            buffer = state.alternate_buffer
+
         try:
-            line_no, line_offset, offset, line, updates = buffer.folded_lines[y]
+            line_no, line_offset, offset, line, updates = buffer.folded_lines[
+                y - buffer_offset
+            ]
         except IndexError:
             return Strip.blank(width, rich_style)
 
         cache_key: tuple | None = (self.state.alternate_screen, y, updates)
-        if state.show_cursor and buffer.cursor_line == y:
+        if state.show_cursor and buffer.cursor_line == y - buffer_offset:
             if buffer.cursor_offset >= len(line):
                 line = line.pad_right(buffer.cursor_offset - len(line) + 1)
             line_cursor_offset = buffer.cursor_offset
@@ -125,7 +133,7 @@ class Terminal(ScrollView):
         if (
             not selection
             and cache_key is not None
-            and (cached_strip := self._render_cache.get(cache_key))
+            and (cached_strip := self._terminal_render_cache.get(cache_key))
         ):
             cached_strip = cached_strip.crop_extend(x, x + width, rich_style)
             cached_strip = cached_strip.apply_offsets(x + offset, line_no)
@@ -152,7 +160,7 @@ class Terminal(ScrollView):
         strip = Strip(line.render_segments(visual_style), cell_length=line.cell_length)
 
         if cache_key is not None:
-            self._render_cache[cache_key] = strip
+            self._terminal_render_cache[cache_key] = strip
 
         strip = strip.crop_extend(x, x + width, rich_style)
         strip = strip.apply_offsets(x + offset, line_no)

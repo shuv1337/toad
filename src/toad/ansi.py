@@ -83,6 +83,49 @@ class CSIPattern(Pattern):
         )
 
 
+class DECPattern(Pattern):
+    class Match(NamedTuple):
+        slot: int
+        character_set: str
+
+    def check(self) -> PatternCheck:
+        if (initial_character := (yield)) not in "()*+":
+            return False
+        slot = "()*+".find(initial_character)
+        character_set = yield
+        return self.Match(slot, character_set)
+
+
+class DECInvokePattern(Pattern):
+    class Match(NamedTuple):
+        gl: int | None = None
+        gr: int | None = None
+        shift: int | None = None
+
+    INVOKE_G2_INTO_GL = Match(gl=2)
+    INVOKE_G3_INTO_GL = Match(gl=3)
+    INVOKE_G1_INTO_GR = Match(gr=1)
+    INVOKE_G2_INTO_GR = Match(gr=2)
+    INVOKE_G3_INTO_GR = Match(gr=3)
+    SHIFT_G2 = Match(shift=2)
+    SHIFT_G3 = Match(shift=3)
+
+    INVOKE = {
+        "n": INVOKE_G2_INTO_GL,
+        "o": INVOKE_G3_INTO_GL,
+        "~": INVOKE_G1_INTO_GR,
+        "}": INVOKE_G2_INTO_GR,
+        "|": INVOKE_G3_INTO_GR,
+        "N": SHIFT_G2,
+        "O": SHIFT_G3,
+    }
+
+    def check(self) -> PatternCheck:
+        if (initial_character := (yield)) not in self.INVOKE:
+            return False
+        return self.INVOKE[initial_character]
+
+
 class OSCPattern(Pattern):
     class Match(NamedTuple):
         code: str
@@ -153,6 +196,54 @@ SGR_STYLE_MAP: Mapping[int, Style] = {
     107: Style(background=Color(255, 255, 255, ansi=15)),
 }
 
+CHARACTER_SETS = {
+    "B": "ascii",  # US ASCII
+    "A": "uk",  # UK
+    "0": "dec_graphics",  # DEC Special Graphics (line drawing)
+    "<": "dec_supplemental",
+    "4": "dutch",
+    "5": "finnish",
+    "C": "finnish",
+    "R": "french",
+    "Q": "french_canadian",
+    "K": "german",
+}
+
+DEC_GRAPHICS = {
+    # 0x5F: '_',  # underscore (remains unchanged)
+    0x60: "◆",  # ` -> diamond
+    0x61: "▒",  # a -> checkerboard/solid block
+    0x62: "␉",  # b -> HT (Horizontal Tab symbol)
+    0x63: "␌",  # c -> FF (Form Feed symbol)
+    0x64: "␍",  # d -> CR (Carriage Return symbol)
+    0x65: "␊",  # e -> LF (Line Feed symbol)
+    0x66: "°",  # f -> degree symbol
+    0x67: "±",  # g -> plus/minus
+    0x68: "␤",  # h -> NL (New Line symbol)
+    0x69: "␋",  # i -> VT (Vertical Tab symbol)
+    0x6A: "┘",  # j -> lower right corner
+    0x6B: "┐",  # k -> upper right corner
+    0x6C: "┌",  # l -> upper left corner
+    0x6D: "└",  # m -> lower left corner
+    0x6E: "┼",  # n -> crossing lines (plus)
+    0x6F: "⎺",  # o -> scan line 1 (top)
+    0x70: "⎻",  # p -> scan line 3
+    0x71: "─",  # q -> horizontal line (scan line 5)
+    0x72: "⎼",  # r -> scan line 7
+    0x73: "⎽",  # s -> scan line 9 (bottom)
+    0x74: "├",  # t -> left tee (├)
+    0x75: "┤",  # u -> right tee (┤)
+    0x76: "┴",  # v -> bottom tee
+    0x77: "┬",  # w -> top tee
+    0x78: "│",  # x -> vertical bar
+    0x79: "≤",  # y -> less than or equal to
+    0x7A: "≥",  # z -> greater than or equal to
+    0x7B: "π",  # { -> pi
+    0x7C: "≠",  # | -> not equal to
+    0x7D: "£",  # } -> UK pound sign
+    0x7E: "·",  # ~ -> centered dot (bullet)
+}
+
 
 @dataclass
 class ANSIToken:
@@ -189,6 +280,7 @@ class ANSIParser(StreamParser[ANSIToken]):
                         "\x1b",
                         csi=CSIPattern(),
                         osc=OSCPattern(),
+                        dec=DECPattern(),
                     )
                     if isinstance(token, PatternToken):
                         value = token.value
@@ -546,6 +638,12 @@ class ANSICursorShow(NamedTuple):
 
 
 @rich.repr.auto
+class ANSIScrollMargin(NamedTuple):
+    top: int
+    bottom: int
+
+
+@rich.repr.auto
 class ANSIAlternateScreen(NamedTuple):
     """Toggle the alternate buffer."""
 
@@ -561,7 +659,12 @@ class ANSIWorkingDirectory(NamedTuple):
 
 
 type ANSICommand = (
-    ANSICursor | ANSIClear | ANSICursorShow | ANSIAlternateScreen | ANSIWorkingDirectory
+    ANSICursor
+    | ANSIClear
+    | ANSICursorShow
+    | ANSIScrollMargin
+    | ANSIAlternateScreen
+    | ANSIWorkingDirectory
 )
 
 
@@ -621,7 +724,9 @@ class ANSIStream:
         Yields:
             `ANSICommand` isntances.
         """
+        print(repr(text))
         for token in self.parser.feed(text):
+            print("TOKEN", repr(token))
             if isinstance(token, ANSIToken):
                 yield from self.on_token(token)
 
@@ -691,8 +796,11 @@ class ANSIStream:
                     return cls.CLEAR_LINE_CURSOR_TO_BEGINNING
                 case ["2", "", "K"]:
                     return cls.CLEAR_LINE
+                case [top, bottom, "r"]:
+                    return ANSIScrollMargin(int(top), int(bottom))
                 case _:
-                    print("!!", repr(csi), repr(match.groups()))
+                    print("Unknown CSI (a)", repr(csi))
+                    return None
         elif match := re.fullmatch(r"\x1b\[([0-9:;<=>?]*)([!-/]*)([@-~])", csi):
             match match.groups(default=""):
                 case ["?25", "", "h"]:
@@ -703,7 +811,10 @@ class ANSIStream:
                     return cls.ENABLE_ALTERNATE_SCREEN
                 case ["?1049", "", "l"]:
                     return cls.DISABLE_ALTERNATE_SCREEN
-
+                case _:
+                    print("Unknown CSI (b)", repr(csi))
+                    return None
+        print("Unknown CSI (c)", repr(csi))
         return None
 
     def on_token(self, token: ANSIToken) -> Iterable[ANSICommand]:
@@ -819,6 +930,15 @@ class Buffer:
         return (line_no, position)
 
 
+@dataclass
+class DECState:
+    slots: list[str] = field(default_factory=lambda: ["B", "B", "<", "0"])
+    gl_slotr = 0
+    gr_slot = 2
+
+    _translate_table: dict[int, str] = field(default_factory=dict)
+
+
 class TerminalState:
     """Abstract terminal state (no renderer)."""
 
@@ -843,6 +963,8 @@ class TerminalState:
         """Scrollbar buffer lines."""
         self.alternate_buffer = Buffer()
         """Alternate buffer lines."""
+
+        self.dec_state = DECState()
 
         self._updates: int = 0
 
@@ -932,6 +1054,7 @@ class TerminalState:
         return position
 
     def _handle_ansi_command(self, ansi_command: ANSICommand) -> None:
+        print(ansi_command)
         match ansi_command:
             case ANSICursor(delta_x, delta_y, absolute_x, absolute_y, content, replace):
                 buffer = self.buffer
@@ -946,6 +1069,11 @@ class TerminalState:
 
                 if content is not None:
                     cursor_line_offset = self.get_cursor_line_offset(buffer)
+
+                    if cursor_line_offset > len(line.content):
+                        line.content = line.content.pad_right(
+                            cursor_line_offset - len(line.content)
+                        )
 
                     if replace is not None:
                         start_replace, end_replace = ansi_command.get_replace_offsets(
@@ -994,6 +1122,8 @@ class TerminalState:
 
             case ANSIAlternateScreen(alternate_buffer):
                 self.alternate_screen = alternate_buffer
+                while len(self.alternate_buffer.lines) < self.height:
+                    self.add_line(self.alternate_buffer, EMPTY_LINE)
 
             case ANSIWorkingDirectory(path):
                 self.current_directory = path

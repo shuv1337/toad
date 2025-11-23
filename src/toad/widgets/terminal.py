@@ -138,14 +138,9 @@ class Terminal(ScrollView, can_focus=True):
         state = self.state
         buffer = state.scrollback_buffer
         buffer_offset = 0
-        # print(y)
-        print(self.content_region)
         if y >= len(buffer.folded_lines) and state.alternate_screen:
             buffer_offset = len(buffer.folded_lines)
             buffer = state.alternate_buffer
-            # print(buffer.lines[:3])
-            # print(len(buffer.folded_lines), self.virtual_size)
-
         try:
             folded_line = buffer.folded_lines[y - buffer_offset]
             line_no, line_offset, offset, line, updates = folded_line

@@ -14,6 +14,8 @@ type PatternCheck = Generator[None, str, TokenMatch | bool | None]
 
 @rich.repr.auto
 class Pattern[ValueType]:
+    __slots__ = ["_send", "value"]
+
     def __init__(self) -> None:
         self._send: Callable[[str], None] | None = None
         self.value: ValueType | None = None
@@ -41,12 +43,16 @@ class StreamRead[ResultType]:
 
 @rich.repr.auto
 class Read[ResultType](StreamRead[ResultType]):
+    __slots__ = ["remaining"]
+
     def __init__(self, count: int) -> None:
         self.remaining = count
 
 
 @rich.repr.auto
 class ReadUntil[ResultType](StreamRead[ResultType]):
+    __slots__ = ["characters", "_regex"]
+
     def __init__(self, *characters: str) -> None:
         self.characters = characters
         self._regex = re.compile(
@@ -59,6 +65,8 @@ class ReadUntil[ResultType](StreamRead[ResultType]):
 
 @rich.repr.auto
 class ReadRegex[ResultType](StreamRead[ResultType]):
+    __slots__ = ["regex", "max_length", "_buffer"]
+
     def __init__(self, regex: str, max_length: int | None = None) -> None:
         self.regex = regex
         self.max_length = max_length
@@ -74,13 +82,16 @@ class ReadRegex[ResultType](StreamRead[ResultType]):
 
 @rich.repr.auto
 class ReadPatterns[ResultType](StreamRead[ResultType]):
+    __slots__ = ["patterns", "_text"]
+
     def __init__(self, start: str = "", **patterns: Pattern) -> None:
         self.patterns = patterns
-        self._text: list[str] = [start] if start else []
+        self._text = io.StringIO()
+        self._text.write(start)
 
     @property
     def unconsumed_text(self) -> str:
-        return "".join(self._text)
+        return self._text.getvalue()
 
     def __rich_repr__(self) -> rich.repr.Result:
         for key, value in self.patterns.items():
@@ -92,20 +103,26 @@ class ReadPatterns[ResultType](StreamRead[ResultType]):
 
     def feed(self, text: str) -> tuple[int, TokenMatch | None]:
         consumed = 0
-        patterns = self.patterns
-        for consumed, character in enumerate(text, 1):
-            items = list(patterns.items())
-            for name, sequence_validator in items:
+        new_patterns = patterns = self.patterns
+        for character in text:
+            consumed += 1
+            for name, sequence_validator in patterns.items():
                 if (value := sequence_validator.feed(character)) is False:
-                    patterns.pop(name)
+                    new_patterns = patterns.copy()
+                    new_patterns.pop(name)
                 elif value:
                     return consumed, (name, value)
-        self._text.append(text[:consumed])
+            patterns = self._patterns = new_patterns
+        self._text.write(text[:consumed])
         return consumed, None
 
 
 @rich.repr.auto
 class Token:
+    """A token containing text."""
+
+    __slots__ = "text"
+
     def __init__(self, text: str = "") -> None:
         self.text = text
 
@@ -121,6 +138,8 @@ class SeparatorToken(Token):
 
 
 class MatchToken(Token):
+    __slots__ = ["match"]
+
     def __init__(self, text: str, match: re.Match) -> None:
         self.match = match
         super().__init__(text)
@@ -134,6 +153,8 @@ class EOFToken(Token):
 
 
 class PatternToken(Token):
+    __slots__ = ["name", "value"]
+
     def __init__(self, name: str, value: TokenMatch) -> None:
         self.name = name
         self.value = value

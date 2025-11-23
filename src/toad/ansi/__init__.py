@@ -1,1 +1,1 @@
-from toad.ansi._ansi import TerminalState
+from toad.ansi._ansi import TerminalState as TerminalState

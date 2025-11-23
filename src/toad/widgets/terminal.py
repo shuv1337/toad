@@ -105,7 +105,10 @@ class Terminal(ScrollView, can_focus=True):
         self.call_after_refresh(set_initial_size)
 
     def write(self, text: str) -> None:
-        self.state.write(text)
+        from textual._profile import timer
+
+        with timer(f"write {len(text)} characters"):
+            self.state.write(text)
         self._update_from_state()
 
     def _update_from_state(self) -> None:
@@ -135,9 +138,13 @@ class Terminal(ScrollView, can_focus=True):
         state = self.state
         buffer = state.scrollback_buffer
         buffer_offset = 0
-        if y > len(buffer.folded_lines) and state.alternate_screen:
+        # print(y)
+        print(self.content_region)
+        if y >= len(buffer.folded_lines) and state.alternate_screen:
             buffer_offset = len(buffer.folded_lines)
             buffer = state.alternate_buffer
+            # print(buffer.lines[:3])
+            # print(len(buffer.folded_lines), self.virtual_size)
 
         try:
             folded_line = buffer.folded_lines[y - buffer_offset]

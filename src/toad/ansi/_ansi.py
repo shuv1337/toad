@@ -706,7 +706,7 @@ class Buffer:
     """An index from folded lines on to unfolded lines."""
     folded_lines: list[LineFold] = field(default_factory=list)
     """Folded lines."""
-    scroll_margin: ScrollMargin = ScrollMargin(0, 0)
+    scroll_margin: ScrollMargin = ScrollMargin(None, None)
     """Scroll margins"""
     cursor_line: int = 0
     """Folded line index."""
@@ -1028,11 +1028,10 @@ class TerminalState:
             direction: +1 for down, -1 for up.
             lines: Number of lines.
         """
-        print("SCROLL", direction, lines)
         buffer = self.buffer
         margin_top, margin_bottom = buffer.scroll_margin.get_line_range(self.height)
 
-        copy_content = EMPTY_LINE
+        copy_content = Content("Hello")
         copy_style = NULL_STYLE
         if direction == -1:
             # up (first in test)
@@ -1044,7 +1043,8 @@ class TerminalState:
                         copy_content = copy_line.content
                         copy_style = copy_line.style
                     except IndexError:
-                        copy_line = EMPTY_LINE
+                        copy_content = EMPTY_LINE
+                        copy_style = NULL_STYLE
                 self.update_line(buffer, line_no, copy_content, copy_style)
         else:
             # down
@@ -1056,7 +1056,8 @@ class TerminalState:
                         copy_content = copy_line.content
                         copy_style = copy_line.style
                     except IndexError:
-                        copy_line = EMPTY_LINE
+                        copy_content = EMPTY_LINE
+                        copy_style = NULL_STYLE
                 self.update_line(buffer, line_no, copy_content, copy_style)
 
     def _handle_ansi_command(self, ansi_command: ANSICommand) -> None:
@@ -1089,27 +1090,20 @@ class TerminalState:
                         self.add_line(buffer, EMPTY_LINE)
 
                 if auto_scroll and delta_y is not None:
-                    margin_top, margin_bottom = buffer.scroll_margin.get_line_range(
-                        self.height
-                    )
-                    print("auto scroll", margin_top, margin_bottom)
-                    print("cursor", buffer.cursor_line)
+                    margins = buffer.scroll_margin.get_line_range(self.height)
+                    margin_top, margin_bottom = margins
+
                     if (
                         buffer.cursor_line >= margin_top
                         and buffer.cursor_line <= margin_bottom
                     ):
                         start_line_no = self.screen_start_line_no
                         start_line_no = 0
-                        print("start line", start_line_no)
                         scroll_cursor = buffer.cursor_line + delta_y
-                        if delta_y == +1 and (
-                            scroll_cursor >= (start_line_no + margin_bottom)
-                        ):
+                        if scroll_cursor > (start_line_no + margin_bottom):
                             self.scroll_buffer(-1, 1)
                             return
-                        elif delta_y == -1 and (
-                            scroll_cursor <= (start_line_no + margin_top)
-                        ):
+                        elif scroll_cursor < (start_line_no + margin_top):
                             self.scroll_buffer(+1, 1)
                             return
 
@@ -1214,8 +1208,6 @@ class TerminalState:
                 self._line_updated(buffer, buffer.cursor_line)
 
             case ANSIScroll(direction, lines):
-                print(ansi_command)
-                print(self.buffer.scroll_margin)
                 self.scroll_buffer(direction, lines)
 
             case ANSICharacterSet(dec, dec_invoke):

@@ -169,7 +169,6 @@ class StreamParser[ParseType]:
         """
         return ReadUntil(*characters)
 
-    @lru_cache(1024)
     def read_regex(self, regex: str) -> ReadRegex:
         """Search for the matching regex.
 

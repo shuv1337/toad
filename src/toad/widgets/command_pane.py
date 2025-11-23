@@ -132,14 +132,11 @@ class CommandPane(Terminal):
         )
         unicode_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
-        from textual._profile import timer
-
         try:
             while True:
                 data = await shell_read(reader, BUFFER_SIZE)
                 if line := unicode_decoder.decode(data, final=not data):
-                    with timer("write"):
-                        self.write(line)
+                    self.write(line)
                 if not data:
                     break
         finally:
@@ -177,7 +174,7 @@ if __name__ == "__main__":
     COMMAND = "htop"
     # COMMAND = "uv run python test_ind.py"
     # COMMAND = "nano"
-    # COMMAND = "uv run textual keys"
+    COMMAND = "uv run textual keys"
 
     class CommandApp(App):
         CSS = """

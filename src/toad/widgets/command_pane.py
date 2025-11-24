@@ -70,6 +70,15 @@ class CommandPane(Terminal):
         size = struct.pack("HHHH", height, width, 0, 0)
         fcntl.ioctl(self._master, termios.TIOCSWINSZ, size)
 
+    @property
+    def is_cooked(self) -> bool:
+        """Is the terminal in 'cooked' mode?"""
+        if self._master is None:
+            return True
+        attrs = termios.tcgetattr(self._master)
+        lflag = attrs[3]
+        return bool(lflag & termios.ICANON)
+
     async def _execute(self, command: str) -> None:
         # width, height = self.scrollable_content_region.size
 
@@ -81,10 +90,6 @@ class CommandPane(Terminal):
 
         # Get terminal attributes
         attrs = termios.tcgetattr(slave)
-
-        # Disable echo (ECHO flag)
-        attrs[3] &= ~termios.ECHO
-        attrs[0] |= termios.ISIG
 
         # Apply the changes
         termios.tcsetattr(slave, termios.TCSANOW, attrs)
@@ -131,6 +136,8 @@ class CommandPane(Terminal):
             os.fdopen(os.dup(master), "wb", 0),
         )
         unicode_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        self.state.update_pty(master)
+        self.log(self.state)
 
         try:
             while True:
@@ -173,9 +180,7 @@ if __name__ == "__main__":
 
     COMMAND = "htop"
     # COMMAND = "uv run python test_ind.py"
-    # COMMAND = "nano"
-    COMMAND = "uv run textual keys"
-    COMMAND = "python"
+    COMMAND = os.environ["SHELL"]
 
     class CommandApp(App):
         CSS = """

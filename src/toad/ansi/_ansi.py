@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import re
+import termios
 import rich.repr
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -59,6 +60,37 @@ class DECInvoke(NamedTuple):
 
 
 DEC_SLOTS = {"(": 0, ")": 1, "*": 2, "+": 3, "-": 1, ".": 2, "//": 3}
+
+
+class PTYFlags(NamedTuple):
+    """Terminal related flags."""
+
+    canonical: bool = True
+    echo: bool = True
+    signals: bool = True
+    extended_input_processing: bool = True
+    translate_cr_to_nl_on_input: bool = True
+    translate_nl_to_cr_on_input: bool = False
+    ignore_cr: bool = False
+
+    @classmethod
+    def from_file_descriptor(cls, fd: int) -> PTYFlags | None:
+        try:
+            attrs = termios.tcgetattr(fd)
+        except termios.error:
+            return None
+        iflag = attrs[0]
+        lflag = attrs[3]
+
+        return PTYFlags(
+            canonical=bool(lflag & termios.ICANON),
+            echo=bool(lflag & termios.ECHO),
+            signals=bool(lflag & termios.ISIG),
+            extended_input_processing=bool(lflag & termios.IEXTEN),
+            translate_cr_to_nl_on_input=bool(iflag & termios.ICRNL),
+            translate_nl_to_cr_on_input=bool(iflag & termios.INLCR),
+            ignore_cr=bool(iflag & termios.IGNCR),
+        )
 
 
 class FEPattern(Pattern):
@@ -876,8 +908,16 @@ class TerminalState:
         """The DEC (character set) state."""
         self.mouse_tracking_state = MouseTracking()
         """The mouse tracking state."""
+        self.pty_flags = PTYFlags()
+        """Current pty flags."""
+        self._finalized: bool = False
+
         self._updates: int = 0
         """Incrementing integer used in caching."""
+
+    @property
+    def is_finalized(self) -> bool:
+        return self._finalized
 
     @property
     def screen_start_line_no(self) -> int:
@@ -898,6 +938,7 @@ class TerminalState:
         yield "replace_mode", self.replace_mode, True
         yield "auto_wrap", self.auto_wrap, True
         yield "dec_state", self.dec_state
+        yield "pty_fflags", self.pty_flags
 
     @property
     def buffer(self) -> Buffer:
@@ -905,6 +946,9 @@ class TerminalState:
         if self.alternate_screen:
             return self.alternate_buffer
         return self.scrollback_buffer
+
+    def finalize(self) -> None:
+        self._finalized = True
 
     def advance_updates(self) -> int:
         """Advance the `updates` integer and return it.
@@ -927,6 +971,16 @@ class TerminalState:
         if height is not None:
             self.height = height
         self._reflow()
+
+    def update_pty(self, fd: int) -> None:
+        """Update pty flags from file descriptot.
+
+        Args:
+            fd: File descriptor.
+
+        """
+        if (pty_flags := PTYFlags.from_file_descriptor(fd)) is not None:
+            self.pty_flags = pty_flags
 
     def key_event_to_stdin(self, event: events.Key) -> str | None:
         """Get the stdin string for a key event.
@@ -1253,7 +1307,7 @@ class TerminalState:
 
             case ANSIWorkingDirectory(path):
                 self.current_directory = path
-                # self.finalize()
+                self.finalize()
 
             case ANSIMouseTracking(tracking, format, focus_events, alternate_scroll):
                 mouse_tracking_state = self.mouse_tracking_state
@@ -1281,6 +1335,8 @@ class TerminalState:
         """
         try:
             buffer.lines[line_no].updates = self.advance_updates()
+            if buffer._updated_lines is not None:
+                buffer._updated_lines.add(line_no)
         except IndexError:
             pass
 

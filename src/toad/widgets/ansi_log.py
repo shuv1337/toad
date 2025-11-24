@@ -14,7 +14,7 @@ from textual.strip import Strip
 from textual.selection import Selection
 from textual.filter import LineFilter
 
-from toad.ansi import (
+from toad.ansi._ansi import (
     ANSIStream,
     ANSICursor,
     ANSIClear,

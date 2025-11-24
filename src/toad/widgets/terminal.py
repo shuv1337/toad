@@ -54,8 +54,13 @@ class Terminal(ScrollView, can_focus=True):
         self._escape_time = monotonic()
         self._escaping = False
         self._escape_reset_timer: Timer | None = None
+        self._finalized: bool = False
 
         self._terminal_render_cache: LRUCache[tuple, Strip] = LRUCache(1024)
+
+    @property
+    def is_finalized(self) -> bool:
+        return self.state.is_finalized
 
     def get_selection(self, selection: Selection) -> tuple[str, str] | None:
         """Get the text under the selection.
@@ -115,6 +120,8 @@ class Terminal(ScrollView, can_focus=True):
     def _update_from_state(
         self, scrollback_delta: set[int] | None, alternate_delta: set[int] | None
     ) -> None:
+        if self.state.is_finalized:
+            self.add_class("-finalized")
         width = self.state.width
         height = self.state.scrollback_buffer.line_count
         if self.state.alternate_screen:
@@ -145,14 +152,17 @@ class Terminal(ScrollView, can_focus=True):
                 self.refresh(
                     Region(
                         0,
-                        scrollback_height,
+                        scrollback_height - scroll_y,
                         window_width,
                         scrollback_height + alternate_height,
                     )
                 )
             else:
+                alternate_delta = {
+                    line_no + scrollback_height for line_no in alternate_delta
+                }
                 refresh_lines = [
-                    Region(0, y + scrollback_height - scroll_y, window_width, 1)
+                    Region(0, y - scroll_y, window_width, 1)
                     for y in sorted(alternate_delta & visible_lines)
                 ]
                 if refresh_lines:
@@ -248,6 +258,7 @@ class Terminal(ScrollView, can_focus=True):
     def on_key(self, event: events.Key):
         event.prevent_default()
         event.stop()
+
         if event.key == "escape":
             if self._escaping:
                 if monotonic() < self._escape_time + ESCAPE_TAP_DURATION:
@@ -268,11 +279,8 @@ class Terminal(ScrollView, can_focus=True):
             if self._escape_reset_timer is not None:
                 self._escape_reset_timer.stop()
 
-        if event.key == "enter":
-            self.write_process_stdin("\n")
-        else:
-            if (stdin := self.state.key_event_to_stdin(event)) is not None:
-                self.write_process_stdin(stdin)
+        if (stdin := self.state.key_event_to_stdin(event)) is not None:
+            self.write_process_stdin(stdin)
 
     def write_process_stdin(self, input: str) -> None:
         pass

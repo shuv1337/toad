@@ -109,14 +109,12 @@ class Terminal(ScrollView, can_focus=True):
 
         with timer(f"write {len(text)} characters"):
             scrollback_delta, alternate_delta = self.state.write(text)
-        # scrollback_delta = set()
-        # alternate_delta = set()
-        self._update_from_state(scrollback_delta, alternate_delta)
+        with timer("Update widget"):
+            self._update_from_state(scrollback_delta, alternate_delta)
 
     def _update_from_state(
         self, scrollback_delta: set[int] | None, alternate_delta: set[int] | None
     ) -> None:
-        print(scrollback_delta, alternate_delta)
         width = self.state.width
         height = self.state.scrollback_buffer.line_count
         if self.state.alternate_screen:

@@ -1006,15 +1006,18 @@ class TerminalState:
             text: Text to write.
 
         Returns:
-            A set of updated lines, or `None` if everything should change.
+            A pair of deltas or `None for full refresh, for scrollback and alternate screen.
         """
         alternate_buffer = self.alternate_buffer
         scrollback_buffer = self.scrollback_buffer
+        # Reset updated lines delta
         alternate_buffer._updated_lines = set()
         scrollback_buffer._updated_lines = set()
+        # Write sequences and update
         for ansi_command in self._ansi_stream.feed(text):
             self._handle_ansi_command(ansi_command)
 
+        # Get deltas
         scrollback_updates = (
             None
             if scrollback_buffer._updated_lines is None
@@ -1025,16 +1028,11 @@ class TerminalState:
             if alternate_buffer._updated_lines is None
             else alternate_buffer._updated_lines.copy()
         )
+        # Reset deltas
         self.alternate_buffer._updated_lines = set()
         self.scrollback_buffer._updated_lines = set()
+        # Return deltas accumulated during write
         return (scrollback_updates, alternate_updates)
-
-        if self._updated_lines is not None:
-            updated_lines = self._updated_lines.copy()
-            self._updated_lines.clear()
-            return updated_lines
-        else:
-            return None
 
     def get_cursor_line_offset(self, buffer: Buffer) -> int:
         """The cursor offset within the un-folded lines."""

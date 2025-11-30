@@ -1,4 +1,6 @@
+import asyncio
 from time import monotonic
+from typing import Callable
 
 from textual.cache import LRUCache
 
@@ -22,13 +24,6 @@ ESCAPE_TAP_DURATION = 400 / 1000
 class Terminal(ScrollView, can_focus=True):
     CURSOR_STYLE = Style.parse("reverse")
 
-    DEFAULT_CSS = """
-    Terminal {
-        overflow: scroll auto;
-        scrollbar-size-horizontal: 0;
-    }
-    """
-
     hide_cursor = reactive(False)
 
     def __init__(
@@ -38,6 +33,8 @@ class Terminal(ScrollView, can_focus=True):
         classes: str | None = None,
         disabled: bool = False,
         minimum_terminal_width: int = -1,
+        size: tuple[int, int] | None = None,
+        get_terminal_dimensions: Callable[[], tuple[int, int]] | None = None,
     ):
         super().__init__(
             name=name,
@@ -46,21 +43,51 @@ class Terminal(ScrollView, can_focus=True):
             disabled=disabled,
         )
         self.minimum_terminal_width = minimum_terminal_width
-        self.state = ansi.TerminalState()
-        self._width: int = 80
+        self._get_terminal_dimensions = get_terminal_dimensions
 
-        self.max_line_width = 0
+        self.state = ansi.TerminalState()
+
+        if size is None:
+            self._width: int = (
+                80 if minimum_terminal_width < 0 else minimum_terminal_width
+            )
+            self._height: int = 24
+        else:
+            width, height = size
+            self._width = width
+            self._height = height
+            if minimum_terminal_width == -1:
+                self.minimum_terminal_width = width
+
         self.max_window_width = 0
         self._escape_time = monotonic()
         self._escaping = False
         self._escape_reset_timer: Timer | None = None
         self._finalized: bool = False
+        self.current_directory: str | None = None
 
         self._terminal_render_cache: LRUCache[tuple, Strip] = LRUCache(1024)
 
     @property
     def is_finalized(self) -> bool:
-        return self.state.is_finalized
+        return self._finalized
+
+    @property
+    def width(self) -> int:
+        return self._width
+
+    @property
+    def height(self) -> int:
+        return self._height
+
+    def finalize(self) -> None:
+        """FInalize the terminal.
+
+        The finalized terminal will reject new writes.
+        Adds the TCSS class `-finalizes`
+        """
+        self._finalized = True
+        self.add_class("-finalized")
 
     def get_selection(self, selection: Selection) -> tuple[str, str] | None:
         """Get the text under the selection.
@@ -77,24 +104,32 @@ class Terminal(ScrollView, can_focus=True):
         return selection.extract(text), "\n"
 
     def _on_resize(self, event: events.Resize) -> None:
-        width, height = self.scrollable_content_region.size
+        if self._get_terminal_dimensions is None:
+            width, height = self.scrollable_content_region.size
+        else:
+            width, height = self._get_terminal_dimensions()
+        print("RESIZE", width, height)
         self.update_size(width, height)
 
     def update_size(self, width: int, height: int) -> None:
-        self.state.update_size(width, height)
+        print("UPDATE SIZE", width, height)
         self._terminal_render_cache.grow(height * 2)
-        window_width = width or 80
+        # width = width or 80
         # if window_width == self._width:
         #     return
         # self._width = window_width
-        self.max_window_width = max(self.max_window_width, window_width)
-        if self.minimum_terminal_width == -1 and window_width:
-            self.minimum_terminal_width = window_width
-        width = max(
-            self.minimum_terminal_width,
-            max(min(self.max_line_width, self.max_window_width), window_width),
-        )
-        self._width = width
+        # self.max_window_width = max(self.max_window_width, window_width)
+        # if self.minimum_terminal_width == -1 and window_width:
+        #     self.minimum_terminal_width = window_width
+        # width = max(
+        #     self.minimum_terminal_width,
+        #     max(min(self.state.max_line_width, self.max_window_width), window_width),
+        # )
+        self._width = width or 80
+        self._height = height or 24
+
+        print("SETTING SIZE to", self._width, self._height)
+        self.state.update_size(self._width, height)
 
         self._terminal_render_cache.clear()
         self.refresh()
@@ -102,26 +137,36 @@ class Terminal(ScrollView, can_focus=True):
     def on_mount(self) -> None:
         self.auto_links = False
         self.anchor()
-
-        def set_initial_size():
+        if self._get_terminal_dimensions is None:
             width, height = self.scrollable_content_region.size
-            self.update_size(width, height)
+        else:
+            width, height = self._get_terminal_dimensions()
+        self.update_size(width, height)
 
-        self.call_after_refresh(set_initial_size)
+    def write(self, text: str) -> bool:
+        """Write sequences to the terminal.
 
-    def write(self, text: str) -> None:
+        Args:
+            text: Text with ANSI escape sequences.
+
+        Returns:
+            `True` if the state visuals changed, `False` if no visual change.
+        """
         from textual._profile import timer
 
         with timer(f"write {len(text)} characters"):
             scrollback_delta, alternate_delta = self.state.write(text)
         with timer("Update widget"):
             self._update_from_state(scrollback_delta, alternate_delta)
+        print("WRITE WIDTH", self._width)
+        return bool(scrollback_delta or alternate_delta)
 
     def _update_from_state(
         self, scrollback_delta: set[int] | None, alternate_delta: set[int] | None
     ) -> None:
-        if self.state.is_finalized:
+        if self.state.current_directory:
             self.add_class("-finalized")
+            self.current_directory = self.state.current_directory
         width = self.state.width
         height = self.state.scrollback_buffer.height
         if self.state.alternate_screen:
@@ -203,7 +248,7 @@ class Terminal(ScrollView, can_focus=True):
             line_record.updates,
             updates,
         )
-        # cache_key = None  # REMOVE
+        cache_key = None  # REMOVE
 
         if (
             not self.hide_cursor

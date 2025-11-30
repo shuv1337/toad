@@ -16,8 +16,7 @@ from typing import Mapping
 from textual.content import Content
 from textual.reactive import var
 
-from toad.pill import pill
-from toad.widgets.ansi_log import ANSILog
+from toad.widgets.terminal import Terminal
 
 
 @dataclass
@@ -48,9 +47,9 @@ class TerminalState:
     signal: str | None = None
 
 
-class TerminalTool(ANSILog):
+class TerminalTool(Terminal):
     DEFAULT_CSS = """
-    Terminal {
+    TerminalTool {
         height: auto;
         border: panel $text-primary;
     }

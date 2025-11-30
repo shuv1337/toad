@@ -258,7 +258,7 @@ Conversation {
         }  
     }
     
-    ANSILog {        
+    Terminal {        
         width: 1fr;
         height: auto;
         padding: 0 1 0 0;
@@ -266,7 +266,8 @@ Conversation {
         overflow: scroll;
         scrollbar-size: 0 0;  
         # &.-finalized {            
-        # }      
+        # }
+        # border: red;      
     }
 
     TerminalTool {

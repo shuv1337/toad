@@ -622,7 +622,6 @@ class ANSIStream:
                     yield ANSIStyle(self.style)
                 else:
                     if (ansi_segment := self._parse_csi(csi)) is not None:
-                        print("csi", ansi_segment)
                         yield ansi_segment
 
             case ["dec", dec]:
@@ -899,22 +898,9 @@ class TerminalState:
         """The DEC (character set) state."""
         self.mouse_tracking_state = MouseTracking()
         """The mouse tracking state."""
-        self._finalized: bool = False
 
         self._updates: int = 0
         """Incrementing integer used in caching."""
-
-    @property
-    def is_finalized(self) -> bool:
-        return self._finalized
-
-    @property
-    def screen_start_line_no(self) -> int:
-        return self.buffer.line_count - self.height
-
-    @property
-    def screen_end_line_no(self) -> int:
-        return self.buffer.line_count
 
     def __rich_repr__(self) -> rich.repr.Result:
         yield "width", self.width
@@ -929,14 +915,23 @@ class TerminalState:
         yield "dec_state", self.dec_state
 
     @property
+    def screen_start_line_no(self) -> int:
+        return self.buffer.line_count - self.height
+
+    @property
+    def screen_end_line_no(self) -> int:
+        return self.buffer.line_count
+
+    @property
     def buffer(self) -> Buffer:
         """The buffer (scrollack or alternate)"""
         if self.alternate_screen:
             return self.alternate_buffer
         return self.scrollback_buffer
 
-    def finalize(self) -> None:
-        self._finalized = True
+    @property
+    def max_line_width(self) -> int | None:
+        return self.scrollback_buffer.max_line_width
 
     def advance_updates(self) -> int:
         """Advance the `updates` integer and return it.
@@ -954,11 +949,13 @@ class TerminalState:
             width: New width, or `None` for no change.
             height: New height, or `None` for no change.
         """
+        previous_width = self.width
         if width is not None:
             self.width = width
         if height is not None:
             self.height = height
-        self._reflow()
+        if previous_width != width:
+            self._reflow()
 
     def key_event_to_stdin(self, event: events.Key) -> str | None:
         """Get the stdin string for a key event.
@@ -1297,7 +1294,6 @@ class TerminalState:
 
             case ANSIWorkingDirectory(path):
                 self.current_directory = path
-                self.finalize()
 
             case ANSIMouseTracking(tracking, format, focus_events, alternate_scroll):
                 mouse_tracking_state = self.mouse_tracking_state

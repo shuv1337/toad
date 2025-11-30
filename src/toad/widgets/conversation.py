@@ -52,7 +52,7 @@ from toad.protocol import BlockProtocol, MenuProtocol, ExpandProtocol
 from toad.menus import MenuItem
 
 if TYPE_CHECKING:
-    from toad.widgets.ansi_log import ANSILog
+    from toad.widgets.terminal import Terminal
     from toad.widgets.agent_response import AgentResponse
     from toad.widgets.agent_thought import AgentThought
     from toad.widgets.terminal_tool import TerminalTool
@@ -235,7 +235,7 @@ class Conversation(containers.Vertical):
         self._loading: Loading | None = None
         self._agent_response: AgentResponse | None = None
         self._agent_thought: AgentThought | None = None
-        self._ansi_log: ANSILog | None = None
+        self._terminal: Terminal | None = None
         self._last_escape_time: float = monotonic()
         self._agent_data = agent
 
@@ -513,14 +513,14 @@ class Conversation(containers.Vertical):
     def on_current_working_directory_changed(
         self, event: CurrentWorkingDirectoryChanged
     ) -> None:
-        if self._ansi_log is not None:
-            self._ansi_log.finalize()
+        if self._terminal is not None:
+            self._terminal.finalize()
         self.working_directory = str(Path(event.path).resolve().absolute())
 
     @on(ShellFinished)
     def on_shell_finished(self) -> None:
-        if self._ansi_log is not None:
-            self._ansi_log.finalize()
+        if self._terminal is not None:
+            self._terminal.finalize()
 
     def watch_busy_count(self, busy: int) -> None:
         self.throbber.set_class(busy > 0, "-busy")
@@ -633,7 +633,7 @@ class Conversation(containers.Vertical):
         return terminal
 
     async def action_interrupt(self) -> None:
-        if self._ansi_log is not None and not self._ansi_log.is_finalized:
+        if self._terminal is not None and not self._terminal.is_finalized:
             await self.shell.interrupt()
             self._shell = None
             self.flash("Command interrupted", style="success")
@@ -980,26 +980,41 @@ class Conversation(containers.Vertical):
             self.window.anchor()
         return widget
 
-    async def new_ansi_log(self, width: int, display: bool = True) -> ANSILog:
-        """Create a new ANSI log.
+    async def new_terminal(self) -> Terminal:
+        """Create a new interactive Terminal.
 
         Args:
-            width: Initial width of the ansi log.
+            width: Initial width of the terminal.
             display: Initial display.
 
         Returns:
-            A new (mounted) ANSILog widget.
+            A new (mounted) Terminal widget.
         """
-        from toad.widgets.ansi_log import ANSILog
+        from toad.widgets.terminal import Terminal
 
-        if self._ansi_log is not None:
-            self._ansi_log.finalize()
+        if self._terminal is not None:
+            self._terminal.finalize()
+        terminal_width, terminal_height = self.get_terminal_dimensions()
+        terminal = Terminal(
+            size=(terminal_width, terminal_height),
+            get_terminal_dimensions=self.get_terminal_dimensions,
+        )
+        terminal.display = False
+        terminal = await self.post(terminal)
+        self._terminal = terminal
+        return terminal
 
-        ansi_log = ANSILog(minimum_terminal_width=width)
-        ansi_log.display = display
-        ansi_log = await self.post(ansi_log)
-        self._ansi_log = ansi_log
-        return ansi_log
+    def get_terminal_dimensions(self) -> tuple[int, int]:
+        """Get the default dimensions of new terminals.
+
+        Returns:
+            Tuple of (WIDTH, HEIGHT)
+        """
+        terminal_width = (
+            self.window.size.width - 2 - self.window.styles.scrollbar_size_vertical
+        )
+        terminal_height = self.window.scrollable_content_region.height - 4
+        return terminal_width, terminal_height
 
     @property
     def shell(self) -> Shell:
@@ -1030,12 +1045,8 @@ class Conversation(containers.Vertical):
 
         if command.strip():
             await self.post(ShellResult(command))
-            self.call_after_refresh(
-                self.shell.send,
-                command,
-                self.window.size.width - 2 - self.window.styles.scrollbar_size_vertical,
-                self.window.scrollable_content_region.height - 4,
-            )
+            width, height = self.get_terminal_dimensions()
+            await self.shell.send(command, width, height)
 
     def action_cursor_up(self) -> None:
         if not self.contents.displayed_children or self.cursor_offset == 0:

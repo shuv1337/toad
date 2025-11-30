@@ -14,7 +14,6 @@ from textual.message import Message
 
 from toad.shell_read import shell_read
 
-# from toad.widgets.ansi_log import ANSILog
 from toad.widgets.terminal import Terminal
 
 
@@ -91,11 +90,11 @@ class CommandPane(Terminal):
         flags = fcntl.fcntl(master, fcntl.F_GETFL)
         fcntl.fcntl(master, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
-        # Get terminal attributes
-        attrs = termios.tcgetattr(slave)
+        # # Get terminal attributes
+        # attrs = termios.tcgetattr(slave)
 
-        # Apply the changes
-        termios.tcsetattr(slave, termios.TCSANOW, attrs)
+        # # Apply the changes
+        # termios.tcsetattr(slave, termios.TCSANOW, attrs)
 
         env = os.environ.copy()
         env["FORCE_COLOR"] = "1"

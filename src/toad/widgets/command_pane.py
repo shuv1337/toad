@@ -136,7 +136,6 @@ class CommandPane(Terminal):
             os.fdopen(os.dup(master), "wb", 0),
         )
         unicode_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
-        self.log(self.state)
 
         try:
             while True:
@@ -155,8 +154,8 @@ class CommandPane(Terminal):
         self.post_message(self.CommandComplete(return_code or 0))
         self.hide_cursor = True
 
-    def write_stdin(self, stdin_bytes: bytes) -> None:
-        self.write_transport.write(stdin_bytes)
+    # def write_stdin(self, stdin_bytes: bytes) -> None:
+    #     self.write_transport.write(stdin_bytes)
 
     def write_process_stdin(self, input: str) -> None:
         stdin_bytes = input.encode("utf-8")
@@ -167,6 +166,7 @@ if __name__ == "__main__":
     from textual.app import App, ComposeResult
 
     COMMAND = os.environ["SHELL"]
+    COMMAND = "python test_input.py"
 
     class CommandApp(App):
         CSS = """

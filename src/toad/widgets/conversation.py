@@ -157,7 +157,12 @@ class Conversation(containers.Vertical):
             "Block cursor down",
             group=CURSOR_BINDING_GROUP,
         ),
-        Binding("enter", "select_block", "Select", tooltip="Select this block"),
+        Binding(
+            "enter",
+            "select_block",
+            "Select",
+            tooltip="Select this block",
+        ),
         Binding(
             "space",
             "expand_block",
@@ -177,6 +182,13 @@ class Conversation(containers.Vertical):
             "cancel",
             "Cancel",
             tooltip="Cancel agent's turn",
+        ),
+        Binding(
+            "ctrl+f",
+            "focus_terminal",
+            "Focus",
+            tooltip="Focus the active terminal",
+            priority=True,
         ),
         Binding(
             "ctrl+m",
@@ -225,8 +237,7 @@ class Conversation(containers.Vertical):
         super().__init__()
 
         project_path = project_path.resolve().absolute()
-        # self.project_path = project_path
-        # self.working_directory = str(project_path)
+
         self.set_reactive(Conversation.project_path, project_path)
         self.set_reactive(Conversation.working_directory, str(project_path))
         self.agent_slash_commands: list[SlashCommand] = []
@@ -238,6 +249,7 @@ class Conversation(containers.Vertical):
         self._terminal: Terminal | None = None
         self._last_escape_time: float = monotonic()
         self._agent_data = agent
+        self._mouse_down_offset: Offset | None = None
 
         self.project_data_path = paths.get_project_data(project_path)
         self.shell_history = History(self.project_data_path / "shell_history.jsonl")
@@ -312,6 +324,10 @@ class Conversation(containers.Vertical):
         self.query_one(Flash).flash(content, duration=duration, style=style)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "focus_terminal":
+            return (
+                None if self._terminal is None or self._terminal.is_finalized else True
+            )
         if action == "mode_switcher":
             return bool(self.modes)
         if action == "cancel":
@@ -327,6 +343,12 @@ class Conversation(containers.Vertical):
             return None if action == "expand_block" else False
 
         return True
+
+    async def action_focus_terminal(self) -> None:
+        if self._terminal is not None and not self._terminal.is_finalized:
+            self._terminal.focus()
+        else:
+            self.flash("Nothing to focus...", style="error")
 
     async def action_expand_block(self) -> None:
         if (cursor_block := self.cursor_block) is not None:
@@ -937,7 +959,15 @@ class Conversation(containers.Vertical):
             self.agent_info = agent.get_info()
             self.agent_ready = False
 
+    def on_mouse_down(self, event: events.MouseDown) -> None:
+        self._mouse_down_offset = event.screen_offset
+
     def on_click(self, event: events.Click) -> None:
+        if (
+            self._mouse_down_offset is not None
+            and event.screen_offset != self._mouse_down_offset
+        ):
+            return
         widget = event.widget
         contents = self.contents
         if self.screen.get_selected_text():
@@ -1002,6 +1032,7 @@ class Conversation(containers.Vertical):
         terminal.display = False
         terminal = await self.post(terminal)
         self._terminal = terminal
+        self.refresh_bindings()
         return terminal
 
     def get_terminal_dimensions(self) -> tuple[int, int]:

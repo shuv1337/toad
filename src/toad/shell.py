@@ -27,8 +27,12 @@ IS_MACOS = platform.system() == "Darwin"
 def resize_pty(fd, cols, rows):
     """Resize the pseudo-terminal"""
     # Pack the dimensions into the format expected by TIOCSWINSZ
-    size = struct.pack("HHHH", rows, cols, 0, 0)
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, size)
+    try:
+        size = struct.pack("HHHH", rows, cols, 0, 0)
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, size)
+    except OSError:
+        # Possibly file descriptor closed
+        pass
 
 
 @dataclass
@@ -76,14 +80,23 @@ class Shell:
 
         # self.width = width
         # self.height = height
-        print("RESIZE PTY", width, height)
+
         resize_pty(self.master, width, max(height, 1))
 
-        command = f"{command}\n"
-        self.writer.write(command.encode("utf-8"))
+        old_settings = termios.tcgetattr(self.master)
 
-        get_pwd_command = r'printf "\e]2025;$(pwd);\e\\"' + "\n"
+        # Disable echo
+        new_settings = termios.tcgetattr(self.master)
+        new_settings[3] = new_settings[3] & ~termios.ECHO  # lflag is at index 3
+        termios.tcsetattr(self.master, termios.TCSADRAIN, new_settings)
+
+        # command = f"{command}\n"
+        # self.writer.write(command.encode("utf-8"))
+
+        get_pwd_command = f"{command};" + r'printf "\e]2025;$(pwd);\e\\"' + "\n"
         self.writer.write(get_pwd_command.encode("utf-8"))
+
+        termios.tcsetattr(self.master, termios.TCSADRAIN, old_settings)
 
         self.terminal = None
 
@@ -105,15 +118,13 @@ class Shell:
         flags = fcntl.fcntl(master, fcntl.F_GETFL)
         fcntl.fcntl(master, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
-        # Get terminal attributes
-        attrs = termios.tcgetattr(slave)
-
-        # Disable echo (ECHO flag)
-        attrs[3] &= ~termios.ECHO
-        attrs[0] |= termios.ISIG
-
-        # Apply the changes
-        termios.tcsetattr(slave, termios.TCSANOW, attrs)
+        # # Get terminal attributes
+        # attrs = termios.tcgetattr(slave)
+        # # Disable echo (ECHO flag)
+        # attrs[3] &= ~termios.ECHO
+        # attrs[0] |= termios.ISIG
+        # # Apply the changes
+        # termios.tcsetattr(slave, termios.TCSANOW, attrs)
 
         env = os.environ.copy()
         env["FORCE_COLOR"] = "1"
@@ -169,6 +180,10 @@ class Shell:
 
         unicode_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
+        def write_stdin(input: str) -> None:
+            if self.writer is not None:
+                self.writer.write(input.encode("utf-8"))
+
         self._ready_event.set()
         try:
             while True:
@@ -176,7 +191,13 @@ class Shell:
 
                 if line := unicode_decoder.decode(data, final=not data):
                     if self.terminal is None or self.terminal.is_finalized:
+                        previous_state = (
+                            None if self.terminal is None else self.terminal.state
+                        )
                         self.terminal = await self.conversation.new_terminal()
+                        # if previous_state is not None:
+                        #     self.terminal.set_state(previous_state)
+                        self.terminal.set_write_to_stdin(write_stdin)
                     if self.terminal.write(line):
                         self.terminal.display = True
                     new_directory = self.terminal.current_directory

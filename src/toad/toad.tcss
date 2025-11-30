@@ -267,7 +267,7 @@ Conversation {
         scrollbar-size: 0 0;  
         # &.-finalized {            
         # }
-        # border: red;      
+        
     }
 
     TerminalTool {

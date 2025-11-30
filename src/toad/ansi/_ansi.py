@@ -70,7 +70,7 @@ class FEPattern(Pattern):
     FINAL = character_range(0x30, 0x7E)
     INTERMEDIATE = character_range(0x20, 0x2F)
     CSI_TERMINATORS = character_range(0x40, 0x7E)
-    OSC_TERMINATORS = frozenset({"\x1b", "\x07", "\x9c"})
+    OSC_TERMINATORS = frozenset({"\x07", "\x9c"})
     DSC_TERMINATORS = frozenset({"\x9c"})
 
     def check(self) -> PatternCheck:
@@ -93,10 +93,11 @@ class FEPattern(Pattern):
                 OSC_TERMINATORS = self.OSC_TERMINATORS
                 while (character := (yield)) not in OSC_TERMINATORS:
                     store(character)
-                    if last_character == "\x1b" and character == "\\":
+                    if last_character == "\x1b" and character in {"\\", "\0x5c"}:
                         break
                     last_character = character
                 store(character)
+
                 return ("osc", sequence.getvalue())
 
             # DCS
@@ -145,20 +146,22 @@ class ANSIParser(StreamParser[tuple[str, str]]):
             if isinstance(token, SeparatorToken):
                 if token.text == ESCAPE:
                     token = yield self.read_patterns("\x1b", fe=FEPattern())
-
                     if isinstance(token, PatternToken):
-                        token_type, _ = token.value
+                        yield token.value
 
-                        if token_type == "osc":
-                            osc_data = io.StringIO()
-                            while not isinstance(
-                                token := (yield self.read_regex(r"\x1b\\|\x07")),
-                                MatchToken,
-                            ):
-                                osc_data.write(token.text)
-                            yield "osc", osc_data.getvalue()
-                        else:
-                            yield token.value
+                    # if isinstance(token, PatternToken):
+                    #     token_type, _ = token.value
+
+                    #     if token_type == "osc":
+                    #         osc_data = io.StringIO()
+                    #         while not isinstance(
+                    #             token := (yield self.read_regex(r"\x1b\\|\x07")),
+                    #             MatchToken,
+                    #         ):
+                    #             osc_data.write(token.text)
+                    #         yield "osc", osc_data.getvalue()
+                    #     else:
+                    #         yield token.value
 
                 else:
                     yield "separator", token.text
@@ -1078,14 +1081,9 @@ class TerminalState:
         return position
 
     def clear_buffer(self, clear: ClearType) -> None:
-        print("CLEAR", clear)
         buffer = self.buffer
-
         if clear == "screen":
             buffer.clear(self.advance_updates())
-            style = self.style
-            for line_no in range(self.height):
-                self.add_line(buffer, EMPTY_LINE, style)
         elif clear == "cursor_to_end":
             buffer._updated_lines = None
             folded_cursor_line = buffer.cursor_line
@@ -1108,7 +1106,7 @@ class TerminalState:
         buffer = self.buffer
         margin_top, margin_bottom = buffer.scroll_margin.get_line_range(self.height)
 
-        copy_content = Content("Hello")
+        copy_content = Content("")
         copy_style = NULL_STYLE
         if direction == -1:
             # up (first in test)
@@ -1138,7 +1136,6 @@ class TerminalState:
                 self.update_line(buffer, line_no, copy_content, copy_style)
 
     def _handle_ansi_command(self, ansi_command: ANSICommand) -> None:
-        # print(ansi_command)
         if isinstance(ansi_command, ANSINewLine):
             if self.alternate_screen:
                 # New line behaves differently in alternate screen

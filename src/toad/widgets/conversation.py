@@ -711,7 +711,7 @@ class Conversation(containers.Vertical):
                 KeyError(f"No terminal with id {message.terminal_id!r}")
             )
         else:
-            message.result_future.set_result(terminal.state)
+            message.result_future.set_result(terminal.tool_state)
 
     @on(acp_messages.ReleaseTerminal)
     def on_acp_terminal_release(self, message: acp_messages.ReleaseTerminal):

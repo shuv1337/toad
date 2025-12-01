@@ -5,6 +5,7 @@ from time import monotonic
 async def shell_read(
     reader: asyncio.StreamReader,
     buffer_size: int,
+    *,
     buffer_period: float | None = 1 / 100,
     max_buffer_duration: float = 1 / 60,
 ) -> bytes:

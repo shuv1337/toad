@@ -315,9 +315,9 @@ class Agent(AgentBase):
     async def rpc_terminal_output(
         self, sessionId: str, terminalId: str, _meta: dict | None = None
     ) -> protocol.TerminalOutputResponse:
-        from toad.widgets.terminal_tool import TerminalState
+        from toad.widgets.terminal_tool import ToolState
 
-        result_future: asyncio.Future[TerminalState] = asyncio.Future()
+        result_future: asyncio.Future[ToolState] = asyncio.Future()
 
         if not self.post_message(messages.GetTerminalState(terminalId, result_future)):
             raise RuntimeError("Unable to get terminal output")

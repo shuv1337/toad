@@ -14,8 +14,10 @@ import termios
 from typing import Mapping
 
 from textual.content import Content
+from textual import events
 from textual.reactive import var
 
+from toad.shell_read import shell_read
 from toad.widgets.terminal import Terminal
 
 
@@ -38,7 +40,7 @@ class Command:
 
 
 @dataclass
-class TerminalState:
+class ToolState:
     """Current state of the terminal."""
 
     output: str
@@ -89,9 +91,6 @@ class TerminalTool(Terminal):
         self._ready_event = asyncio.Event()
         self._exit_event = asyncio.Event()
 
-        self._width: int | None = None
-        self._height: int | None = None
-
     @property
     def return_code(self) -> int | None:
         """The command return code, or `None` if not yet set."""
@@ -103,11 +102,11 @@ class TerminalTool(Terminal):
         return self._released
 
     @property
-    def state(self) -> TerminalState:
+    def tool_state(self) -> ToolState:
         """Get the current terminal state."""
         output, truncated = self.get_output()
         # TODO: report signal
-        return TerminalState(
+        return ToolState(
             output=output, truncated=truncated, return_code=self.return_code
         )
 
@@ -158,8 +157,8 @@ class TerminalTool(Terminal):
 
     async def start(self, width: int = 0, height: int = 0) -> None:
         assert self._command is not None
-        self._width = width or 80
-        self._height = height or 80
+
+        self.update_size(width, height)
         self._command_task = asyncio.create_task(
             self.run(), name=f"Terminal {self._command}"
         )
@@ -185,14 +184,14 @@ class TerminalTool(Terminal):
         flags = fcntl.fcntl(master, fcntl.F_GETFL)
         fcntl.fcntl(master, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
-        # Get terminal attributes
-        attrs = termios.tcgetattr(slave)
+        # # Get terminal attributes
+        # attrs = termios.tcgetattr(slave)
 
-        # Disable echo (ECHO flag)
-        attrs[3] &= ~termios.ECHO
+        # # Disable echo (ECHO flag)
+        # attrs[3] &= ~termios.ECHO
 
-        # Apply the changes
-        termios.tcsetattr(slave, termios.TCSANOW, attrs)
+        # # Apply the changes
+        # termios.tcsetattr(slave, termios.TCSANOW, attrs)
 
         command = self._command
         environment = os.environ | command.env
@@ -247,7 +246,11 @@ class TerminalTool(Terminal):
         unicode_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         try:
             while True:
-                data = await reader.read(BUFFER_SIZE)
+                data = await shell_read(
+                    reader,
+                    BUFFER_SIZE,
+                    max_buffer_duration=1 / 30,
+                )
                 if process_data := unicode_decoder.decode(data, final=not data):
                     self._record_output(data)
                     if self.write(process_data):
@@ -257,6 +260,7 @@ class TerminalTool(Terminal):
         finally:
             transport.close()
 
+        self.finalize()
         return_code = self._return_code = await process.wait()
 
         if return_code == 0:

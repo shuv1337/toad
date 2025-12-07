@@ -634,7 +634,7 @@ Footer {
         background: $footer-description-background;
     }
 
-    KeyGroup FooterKey.-disabled {
+    FooterKey.-disabled {
         .footer-key--key {
             text-opacity: 0.6;       
         }

@@ -75,8 +75,18 @@ class LauncherGridSelect(GridSelect):
 
     app = getters.app(ToadApp)
     BINDINGS = [
-        Binding("enter", "select", "Details", tooltip="Open agent details"),
-        Binding("space", "launch", "Lauch", tooltip="Launch highlighted agent"),
+        Binding(
+            "enter",
+            "select",
+            "Details",
+            tooltip="Open agent details",
+        ),
+        Binding(
+            "space",
+            "launch",
+            "Lauch",
+            tooltip="Launch highlighted agent",
+        ),
     ]
 
     def action_details(self) -> None:

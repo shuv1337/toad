@@ -19,13 +19,6 @@ class GridSelect(containers.ItemGrid, can_focus=True):
         Binding("left", "cursor_left", "Cursor Left", group=CURSOR_GROUP),
         Binding("right", "cursor_right", "Cursor Right", group=CURSOR_GROUP),
         Binding("enter", "select", "Select"),
-        Binding("tab", "app.focus_next", "Focus Next", group=FOCUS_GROUP),
-        Binding(
-            "shift+tab",
-            "app.focus_previous",
-            "Focus Previous",
-            group=FOCUS_GROUP,
-        ),
     ]
 
     highlighted: reactive[int | None] = reactive(None)

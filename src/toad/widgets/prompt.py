@@ -712,7 +712,7 @@ class Prompt(containers.VerticalGroup):
             }
             for slash_command in deduplicated_slash_commands.values():
                 command_name = slash_command.command
-                if command_name.startswith(pre_cursor) and pre_cursor != str(
+                if command_name.casefold().startswith(pre_cursor) and pre_cursor != str(
                     slash_command
                 ):
                     row = columns.add_row(

@@ -6,6 +6,7 @@ from fractions import Fraction
 import rich.repr
 from rich.segment import Segment
 
+from textual.cache import LRUCache
 from textual.content import Content
 from textual.css.styles import RulesMap
 from textual.visual import Visual, RenderOptions
@@ -13,6 +14,9 @@ from textual.strip import Strip
 from textual.style import Style
 
 from toad._loop import loop_last
+
+
+from textual._profile import timer
 
 
 @rich.repr.auto
@@ -72,8 +76,7 @@ class Columns:
         self.gutter = gutter
         self.style = style
         self.rows: list[list[Content]] = []
-        self._last_render_parameters: tuple[int, Style] = (-1, Style())
-        self._last_render: list[list[Strip]] | None = None
+        self._render_cache: LRUCache[tuple, list[list[Strip]]] = LRUCache(maxsize=64)
         self._optimal_width_cache: int | None = None
 
     def __rich_repr__(self) -> rich.repr.Result:
@@ -144,6 +147,7 @@ class Columns:
         self.rows.append(new_cells)
         self._optimal_width_cache = None
         self._last_render = None
+        self._render_cache.clear()
         return Row(self, len(self.rows) - 1)
 
     def render(
@@ -159,12 +163,7 @@ class Columns:
         Returns:
             A list of strips, which may be returned from a visual.
         """
-        cache_key = (render_width, style)
-        if self._last_render_parameters == cache_key and self._last_render is not None:
-            row_strips = self._last_render
-        else:
-            row_strips = self._last_render = self._render(render_width, style)
-            self._last_render_parameters = cache_key
+        row_strips = self._render(render_width, style)
         return row_strips[row_index]
 
     def _render(self, render_width: int, style: Style) -> list[list[Strip]]:
@@ -177,6 +176,11 @@ class Columns:
         Returns:
             A list of list of Strips (one list of strips per row).
         """
+
+        cache_key = (render_width, style)
+        if (cached_render := self._render_cache.get(cache_key)) is not None:
+            return cached_render
+
         gutter_width = (len(self.columns) - 1) * self.gutter
         widths: list[int | None] = []
 
@@ -240,6 +244,7 @@ class Columns:
 
             row_strips.append(strips)
 
+        self._render_cache[cache_key] = row_strips
         return row_strips
 
 
